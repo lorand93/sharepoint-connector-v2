@@ -4,6 +4,8 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation-schema';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { validationSchema } from './config/validation-schema';
       load: [configuration],
       validationSchema,
     }),
+    SchedulerModule,
+    SharepointScannerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
