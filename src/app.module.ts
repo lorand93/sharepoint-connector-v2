@@ -6,6 +6,7 @@ import configuration from './config/configuration';
 import { validationSchema } from './config/validation-schema';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner.module';
+import { AuthModule } from './common/auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner
     }),
     SchedulerModule,
     SharepointScannerModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

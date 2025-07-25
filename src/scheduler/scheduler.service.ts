@@ -12,6 +12,11 @@ export class SchedulerService {
   ) {
   }
 
+  onModuleInit() {
+    this.logger.log('Triggering initial scan on service startup...');
+    this.handleCron();
+  }
+
   @Cron('*/15 * * * *')
   async handleCron() {
     if (this.isScanRunning) {
@@ -22,7 +27,7 @@ export class SchedulerService {
     this.logger.log('Scheduler triggered. Starting SharePoint scan...');
     try {
       this.isScanRunning = true;
-      // await this.sharepointScanner.scanForWork();
+      await this.sharepointScanner.scanForWork();
       this.logger.log('Placeholder for scanning logic...');
 
     } catch (error) {
