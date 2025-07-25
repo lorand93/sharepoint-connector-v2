@@ -13,7 +13,7 @@ export class AuthService {
   private graphApiTokenCache: AuthenticationResult | null = null;
   private uniqueApiTokenCache: {accessToken: string; expiresOn: number} | null = null;
 
-  private readonly TOKEN_EXPIRATION_BUFFER_MS = 5 * 60 * 1000;
+  private readonly TOKEN_EXPIRATION_BUFFER_MS = 15 * 60 * 1000;
 
   constructor(private readonly configService: ConfigService) {
     const msalConfig: Configuration = {
@@ -27,7 +27,7 @@ export class AuthService {
   }
 
   async getGraphApiToken(): Promise<string> {
-    if (!this.isGraphApiTokenExpiring()) {
+    if (!this.isGraphApiTokenExpiringSoon()) {
       this.logger.debug('Returning cached Microsoft Graph API token.');
       return this.graphApiTokenCache!.accessToken;
     }
@@ -77,7 +77,7 @@ export class AuthService {
     }
   }
 
-  private isGraphApiTokenExpiring(): boolean {
+  private isGraphApiTokenExpiringSoon(): boolean {
     if (!this.graphApiTokenCache?.expiresOn) {
       return true;
     }
