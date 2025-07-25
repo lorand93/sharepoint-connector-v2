@@ -14,11 +14,11 @@ export class SchedulerService {
 
   onModuleInit() {
     this.logger.log('Triggering initial scan on service startup...');
-    this.handleCron();
+    this.runScheduledScan();
   }
 
   @Cron('*/15 * * * *')
-  async handleCron() {
+  async runScheduledScan() {
     if (this.isScanRunning) {
       this.logger.warn('Scan skipped: A previous scan is still in progress.');
       return;

@@ -7,6 +7,7 @@ import { validationSchema } from './config/validation-schema';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner.module';
 import { AuthModule } from './common/auth/auth.module';
+import { MicrosoftGraphModule } from './common/microsoft-graph/microsoft-graph.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AuthModule } from './common/auth/auth.module';
     SchedulerModule,
     SharepointScannerModule,
     AuthModule,
+    MicrosoftGraphModule,
   ],
   controllers: [AppController],
   providers: [AppService],

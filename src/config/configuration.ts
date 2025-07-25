@@ -11,6 +11,7 @@ export default () => ({
     clientId: process.env.GRAPH_CLIENT_ID,
     clientSecret: process.env.GRAPH_CLIENT_SECRET,
     tenantId: process.env.GRAPH_TENANT_ID,
+    sites: process.env.SHAREPOINT_SITES ? process.env.SHAREPOINT_SITES.split(',') : [],
   },
 
   uniqueApi: {
