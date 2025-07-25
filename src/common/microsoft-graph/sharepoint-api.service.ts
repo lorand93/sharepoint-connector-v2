@@ -13,18 +13,29 @@ export class SharepointApiService {
   ) {}
 
   async getFilesToSync(siteId: string): Promise<any[]> {
-    const token = await this.authService.getGraphApiToken();
-    const headers = { Authorization: `Bearer ${token}` };
-
-    try {
+    return this.makeGraphRequest(async (token) => {
       const url = `${this.GRAPH_API_BASE_URL}/sites/${siteId}/drive/root/search(q='{search-term}')`;
-
+      
       this.logger.log(`Would query for files in site: ${siteId}`);
-
+      
       // For Iteration 1, we return an empty array.
       return [];
+    });
+  }
+
+  private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {
+    let token = await this.authService.getGraphApiToken();
+    
+    try {
+      return await apiCall(token);
     } catch (error) {
-      this.logger.error(`Failed to get files for site ${siteId}`, error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        this.logger.warn('Graph API token expired, refreshing and retrying...');
+        token = await this.authService.getGraphApiToken();
+        return await apiCall(token);
+      }
+      
+      this.logger.error('Graph API request failed', error.response?.data || error.message);
       throw error;
     }
   }
