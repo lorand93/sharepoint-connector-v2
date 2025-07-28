@@ -4,10 +4,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueService } from './queue.service';
 import { JobProcessorService } from './job-processor/job-processor.service';
+import { PipelineModule } from '../pipeline/pipeline.module';
 
 @Module({
   imports: [
     ConfigModule,
+    PipelineModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

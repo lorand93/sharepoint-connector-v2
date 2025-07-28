@@ -16,10 +16,20 @@ export default () => ({
     allowedMimeTypes: process.env.ALLOWED_MIME_TYPES ? process.env.ALLOWED_MIME_TYPES.split(',') : [],
   },
 
+  // Pipeline processing configuration
+  pipeline: {
+    stepTimeoutSeconds: parseInt(process.env.STEP_TIMEOUT_SECONDS || '30', 10),
+    maxFileSizeBytes: parseInt(process.env.MAX_FILE_SIZE_BYTES || '209715200', 10), // 200MB
+  },
+
+  // Unique API configuration
   uniqueApi: {
-    endpoint: process.env.UNIQUE_API_ENDPOINT,
-    tokenUrl: process.env.UNIQUE_API_TOKEN_URL,
-    clientId: process.env.UNIQUE_API_CLIENT_ID,
-    clientSecret: process.env.UNIQUE_API_CLIENT_SECRET,
+    ingestionUrl: process.env.UNIQUE_INGESTION_URL,
+    ingestionGraphQLUrl: process.env.UNIQUE_INGESTION_URL_GRAPHQL,
+    scopeId: process.env.UNIQUE_SCOPE_ID,
+    zitadelOAuthTokenUrl: process.env.ZITADEL_OAUTH_TOKEN_URL,
+    zitadelProjectId: process.env.ZITADEL_PROJECT_ID,
+    zitadelClientId: process.env.ZITADEL_CLIENT_ID,
+    zitadelClientSecret: process.env.ZITADEL_CLIENT_SECRET,
   },
 });
