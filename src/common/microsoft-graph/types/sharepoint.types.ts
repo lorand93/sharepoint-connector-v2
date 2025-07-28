@@ -16,6 +16,8 @@ export interface DriveItem {
   id: string;
   name: string;
   webUrl: string;
+  size?: number;
+  lastModifiedDateTime?: string;
   folder?: {
     childCount: number;
   };
@@ -23,6 +25,11 @@ export interface DriveItem {
     mimeType: string;
   };
   listItem?: ListItem;
+  parentReference?: {
+    driveId: string;
+    siteId: string;
+    path?: string;
+  };
 }
 
 export interface ListItem {

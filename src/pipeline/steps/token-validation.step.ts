@@ -1,26 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IPipelineStep } from './pipeline-step.interface';
 import { ProcessingContext, PipelineStep } from '../types/processing-context';
+import { AuthService } from '../../common/auth/auth.service';
 
 @Injectable()
 export class TokenValidationStep implements IPipelineStep {
   private readonly logger = new Logger(TokenValidationStep.name);
   readonly stepName = PipelineStep.TOKEN_VALIDATION;
 
+  constructor(private readonly authService: AuthService) {}
+
   async execute(context: ProcessingContext): Promise<ProcessingContext> {
     const stepStartTime = Date.now();
     
     try {
-      this.logger.log(`[${context.correlationId}] Starting token validation`);
+      this.logger.log(`[${context.correlationId}] Starting token validation for file: ${context.fileName}`);
       
-      // TODO: Implement token validation logic
-      // - Validate/refresh Unique API token
-      // - Early exit if token acquisition fails
-      // - Cache valid tokens for reuse
+      const [graphToken, uniqueToken] = await Promise.all([
+        this.authService.getGraphApiToken(),
+        this.authService.getUniqueApiToken(),
+      ]);
       
-      this.logger.log(`[${context.correlationId}] Token validation completed`);
+      if (!graphToken || !uniqueToken) {
+        throw new Error(`Failed to obtain valid token from ${graphToken ? 'Zitadel' : 'Microsoft Graph'}`);
+      }
       
-      // Record step timing
+      context.metadata.tokens = {
+        graphApiToken: graphToken,
+        uniqueApiToken: uniqueToken,
+        validatedAt: new Date().toISOString(),
+      };
+      
+      this.logger.log(`[${context.correlationId}] Token validation completed - Both tokens are valid and ready`);
+      
       const stepDuration = Date.now() - stepStartTime;
       context.stepTimings.set(this.stepName, stepDuration);
       
