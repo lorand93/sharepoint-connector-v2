@@ -28,7 +28,6 @@ export class AuthService {
 
   async getGraphApiToken(): Promise<string> {
     if (!this.isGraphApiTokenExpiringSoon()) {
-      this.logger.debug('Returning cached Microsoft Graph API token.');
       return this.graphApiTokenCache!.accessToken;
     }
 

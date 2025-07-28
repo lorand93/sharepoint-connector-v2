@@ -14,6 +14,7 @@ export const validationSchema = Joi.object({
   GRAPH_TENANT_ID: Joi.string().required(),
 
   SHAREPOINT_SITES: Joi.string().required(),
+  SHAREPOINT_SYNC_COLUMN_NAME: Joi.string().required(),
 
   UNIQUE_API_ENDPOINT: Joi.string().uri().required(),
   UNIQUE_API_TOKEN_URL: Joi.string().uri().required(),

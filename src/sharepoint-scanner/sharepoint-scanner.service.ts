@@ -24,13 +24,10 @@ export class SharepointScannerService {
     }
 
     try {
-      const token = await this.authService.getGraphApiToken();
-
       for (const siteId of sitesToScan) {
         try {
-          const files = await this.sharepointApiService.getFilesToSync(siteId);
+          const files = await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
           this.logger.log(`Found ${files.length} files to sync in site ${siteId}.`);
-          console.log(JSON.stringify(files));
         } catch (error) {
           this.logger.error(`Failed to scan site ${siteId}.`, error.stack);
         }
