@@ -4,13 +4,15 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../common/auth/auth.module';
 import { MicrosoftGraphModule } from '../common/microsoft-graph/microsoft-graph.module';
 import { HttpModule } from '@nestjs/axios';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
     ConfigModule,
     AuthModule,
     MicrosoftGraphModule,
-    HttpModule
+    HttpModule,
+    QueueModule
   ],
   providers: [SharepointScannerService],
   exports: [SharepointScannerService],

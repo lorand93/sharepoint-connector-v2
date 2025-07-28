@@ -8,6 +8,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner.module';
 import { AuthModule } from './common/auth/auth.module';
 import { MicrosoftGraphModule } from './common/microsoft-graph/microsoft-graph.module';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { MicrosoftGraphModule } from './common/microsoft-graph/microsoft-graph.m
     SharepointScannerModule,
     AuthModule,
     MicrosoftGraphModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [AppService],
