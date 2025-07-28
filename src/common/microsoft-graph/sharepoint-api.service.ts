@@ -4,6 +4,7 @@ import { AuthService } from '../auth/auth.service';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import { Drive, DriveItem, ModerationStatus } from './types/sharepoint.types';
+import { Readable } from 'stream';
 
 @Injectable()
 export class SharepointApiService {
@@ -91,6 +92,69 @@ export class SharepointApiService {
     const isAllowedMimeType = item.file?.mimeType && allowedMimeTypes.includes(item.file.mimeType);
 
     return Boolean(hasSyncFlag && isApproved && isAllowedMimeType);
+  }
+
+  /**
+   * Downloads file content from SharePoint and returns it as a Buffer
+   * @param driveId - The drive ID containing the file
+   * @param itemId - The item ID of the file
+   * @returns Promise<Buffer> - The file content as a buffer
+   */
+  async downloadFileContent(driveId: string, itemId: string): Promise<Buffer> {
+    this.logger.log(`Downloading file content for item ${itemId} from drive ${driveId}`);
+    
+    const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes') || 209715200; // 200MB
+    
+    return this.makeGraphRequest(async (token) => {
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Get download URL from Microsoft Graph
+      const downloadUrl = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/content`;
+      
+      this.logger.log(`Streaming file content from: ${downloadUrl}`);
+      
+      // Stream the file content with responseType: 'stream'
+      const response = await firstValueFrom(
+        this.httpService.get(downloadUrl, {
+          headers,
+          responseType: 'stream',
+          maxBodyLength: maxFileSizeBytes,
+          maxContentLength: maxFileSizeBytes,
+        })
+      );
+
+      // Convert stream to buffer with size validation
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+
+      return new Promise<Buffer>((resolve, reject) => {
+        const stream = response.data as Readable;
+        
+        stream.on('data', (chunk: Buffer) => {
+          totalSize += chunk.length;
+          
+          // Check size limit during streaming
+          if (totalSize > maxFileSizeBytes) {
+            stream.destroy();
+            reject(new Error(`File size exceeds maximum limit of ${maxFileSizeBytes} bytes (${Math.round(maxFileSizeBytes / 1024 / 1024)}MB)`));
+            return;
+          }
+          
+          chunks.push(chunk);
+        });
+
+        stream.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          this.logger.log(`File download completed. Size: ${totalSize} bytes (${Math.round(totalSize / 1024 / 1024)}MB)`);
+          resolve(buffer);
+        });
+
+        stream.on('error', (error) => {
+          this.logger.error(`File download failed: ${error.message}`);
+          reject(error);
+        });
+      });
+    });
   }
 
   private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {

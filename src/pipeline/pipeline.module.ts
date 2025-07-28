@@ -6,9 +6,15 @@ import { ContentFetchingStep } from './steps/content-fetching.step';
 import { ContentRegistrationStep } from './steps/content-registration.step';
 import { StorageUploadStep } from './steps/storage-upload.step';
 import { IngestionFinalizationStep } from './steps/ingestion-finalization.step';
+import { MicrosoftGraphModule } from '../common/microsoft-graph/microsoft-graph.module';
+import { AuthModule } from '../common/auth/auth.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [
+    ConfigModule,
+    MicrosoftGraphModule,
+    AuthModule,
+  ],
   providers: [
     PipelineService,
     TokenValidationStep,

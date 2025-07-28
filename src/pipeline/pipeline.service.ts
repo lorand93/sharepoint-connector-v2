@@ -49,9 +49,9 @@ export class PipelineService {
       correlationId,
       fileId: file.id,
       fileName: file.name,
-      fileSize: 0, // Will be determined during content fetching
-      siteUrl: '', // To be populated from job metadata
-      libraryName: '', // To be populated from job metadata  
+      fileSize: file.size || 0, // Use file size if available, otherwise determine during content fetching
+      siteUrl: file.parentReference?.siteId || '',
+      libraryName: file.parentReference?.driveId || '',
       downloadUrl: file.webUrl,
       startTime,
       stepTimings: new Map(),
@@ -59,6 +59,9 @@ export class PipelineService {
         mimeType: file.file?.mimeType,
         isFolder: !!file.folder,
         listItemFields: file.listItem?.fields,
+        driveId: file.parentReference?.driveId, // Make driveId easily accessible
+        siteId: file.parentReference?.siteId,
+        lastModifiedDateTime: file.lastModifiedDateTime,
         ...file,
       },
     };
