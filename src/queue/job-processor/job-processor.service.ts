@@ -39,7 +39,7 @@ export class JobProcessorService implements OnModuleInit {
     });
 
     this.worker.on('failed', (job, err) => {
-      this.logger.error(`Job ${job.id} has failed with error: ${err.message}`);
+      this.logger.error(`Job ${job?.id} has failed with error: ${err.message}`);
     });
 
     this.logger.log(`Worker started. Concurrency: ${concurrency}`);

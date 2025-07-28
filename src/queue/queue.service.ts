@@ -8,7 +8,7 @@ export class QueueService implements OnModuleDestroy {
   private readonly queue: Queue;
 
   constructor(private readonly configService: ConfigService) {
-    const redisUrl = new URL(this.configService.get<string>('redis.url'));
+    const redisUrl = new URL(this.configService.get<string>('redis.url')!);
     this.queue = new Queue('sharepoint-tasks', {
       connection: {
         host: redisUrl.hostname,
