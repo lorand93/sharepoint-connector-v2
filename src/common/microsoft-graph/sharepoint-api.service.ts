@@ -14,7 +14,8 @@ export class SharepointApiService {
     private readonly httpService: HttpService,
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+  }
 
   public async findAllSyncableFilesForSite(siteId: string): Promise<DriveItem[]> {
     this.logger.log(`Starting recursive file scan for site: ${siteId}`);
@@ -32,13 +33,13 @@ export class SharepointApiService {
   }
 
   private async getDrivesForSite(siteId: string): Promise<Drive[]> {
-    const allDrives: Drive[] = [];
     let url = `${this.GRAPH_API_BASE_URL}/sites/${siteId}/drives`;
+    const allDrives: Drive[] = [];
 
     while (url) {
       const response = await this.makeGraphRequest((token) => {
-        const headers = { Authorization: `Bearer ${token}` };
-        return firstValueFrom(this.httpService.get(url, { headers }));
+        const headers = {Authorization: `Bearer ${token}`};
+        return firstValueFrom(this.httpService.get(url, {headers}));
       });
       allDrives.push(...(response.data.value || []));
       url = response.data['@odata.nextLink'];
@@ -55,8 +56,8 @@ export class SharepointApiService {
 
     while (url) {
       const response = await this.makeGraphRequest((token) => {
-        const headers = { Authorization: `Bearer ${token}` };
-        return firstValueFrom(this.httpService.get(url, { headers }));
+        const headers = {Authorization: `Bearer ${token}`};
+        return firstValueFrom(this.httpService.get(url, {headers}));
       });
       const items = response.data.value || [];
 
@@ -66,7 +67,7 @@ export class SharepointApiService {
           syncableFiles.push(...filesInSubfolder);
         } else if (item.file) {
           const fields = item.listItem?.fields;
-          if (fields && fields[syncColumnName] === true && fields._ModerationStatus === ModerationStatus.Approved) {
+          if (this.isFileSyncable(item)) {
             syncableFiles.push(item);
           }
         }
@@ -74,6 +75,22 @@ export class SharepointApiService {
       url = response.data['@odata.nextLink'];
     }
     return syncableFiles;
+  }
+
+  private isFileSyncable(item: DriveItem): boolean {
+    const syncColumnName = this.configService.get<string>('sharepoint.syncColumnName')!;
+    const allowedMimeTypes = this.configService.get<string[]>('sharepoint.allowedMimeTypes')!;
+
+    const fields = item.listItem?.fields;
+    if (!fields) {
+      return false;
+    }
+
+    const hasSyncFlag = fields[syncColumnName] === true;
+    const isApproved = fields._ModerationStatus === ModerationStatus.Approved;
+    const isAllowedMimeType = item.file?.mimeType && allowedMimeTypes.includes(item.file.mimeType);
+
+    return Boolean(hasSyncFlag && isApproved && isAllowedMimeType);
   }
 
   private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {

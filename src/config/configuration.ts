@@ -13,6 +13,7 @@ export default () => ({
     tenantId: process.env.GRAPH_TENANT_ID,
     sites: process.env.SHAREPOINT_SITES ? process.env.SHAREPOINT_SITES.split(',') : [],
     syncColumnName: process.env.SHAREPOINT_SYNC_COLUMN_NAME || 'FinanceGPTKnowledge',
+    allowedMimeTypes: process.env.ALLOWED_MIME_TYPES ? process.env.ALLOWED_MIME_TYPES.split(',') : [],
   },
 
   uniqueApi: {

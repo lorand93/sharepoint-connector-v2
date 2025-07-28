@@ -15,6 +15,7 @@ export const validationSchema = Joi.object({
 
   SHAREPOINT_SITES: Joi.string().required(),
   SHAREPOINT_SYNC_COLUMN_NAME: Joi.string().required(),
+  ALLOWED_MIME_TYPES: Joi.string().required(),
 
   UNIQUE_API_ENDPOINT: Joi.string().uri().required(),
   UNIQUE_API_TOKEN_URL: Joi.string().uri().required(),
