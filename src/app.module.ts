@@ -9,6 +9,7 @@ import { SharepointScannerModule } from './sharepoint-scanner/sharepoint-scanner
 import { AuthModule } from './common/auth/auth.module';
 import { MicrosoftGraphModule } from './common/microsoft-graph/microsoft-graph.module';
 import { QueueModule } from './queue/queue.module';
+import { BullBoardModule } from './common/bull-board/bull-board.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { QueueModule } from './queue/queue.module';
     AuthModule,
     MicrosoftGraphModule,
     QueueModule,
+    ...(process.env.NODE_ENV === 'development' ? [BullBoardModule] : []),
   ],
   controllers: [AppController],
   providers: [AppService],

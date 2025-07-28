@@ -1,24 +1,16 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { DriveItem } from '../common/microsoft-graph/types/sharepoint.types';
+import { InjectQueue } from '@nestjs/bullmq';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private readonly queue: Queue;
 
-  constructor(private readonly configService: ConfigService) {
-    const redisUrl = new URL(this.configService.get<string>('redis.url')!);
-    this.queue = new Queue('sharepoint-tasks', {
-      connection: {
-        host: redisUrl.hostname,
-        port: parseInt(redisUrl.port, 10),
-      },
-    });
-  }
+  constructor(@InjectQueue('sharepoint-tasks') private readonly taskQueue: Queue) {}
 
   async addFileProcessingJob(file: DriveItem): Promise<void> {
-    await this.queue.add('process-file', file, {
+    await this.taskQueue.add('process-file', file, {
       attempts: 3,
       backoff: {
         type: 'exponential',
