@@ -56,3 +56,25 @@ export interface FileDiffResponse {
   deletedFiles: string[];
   movedFiles: string[];
 }
+
+export interface IngestionApiResponse {
+  id: string;
+  key: string;
+  byteSize: number;
+  mimeType: string;
+  ownerType: 'SCOPE' | string;
+  ownerId: string;
+  writeUrl: string;
+  readUrl: string;
+  createdAt: string;
+  internallyStoredAt: string | null;
+  source: 'UNIQUE_BLOB_STORAGE' | string;
+}
+
+export interface IngestionApiResponse {
+  contentUpsert: IngestionApiResponse;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+}

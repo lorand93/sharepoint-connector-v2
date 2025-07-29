@@ -4,11 +4,12 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import {
   ContentRegistrationRequest,
-  ContentRegistrationResponse,
   IngestionFinalizationRequest,
   FileDiffFileItem,
   FileDiffRequest,
   FileDiffResponse,
+  IngestionApiResponse,
+  ApiResponse,
 } from './types/unique-api.types';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class UniqueApiService {
   /**
    * Registers content with Unique API and returns upload URL
    */
-  async registerContent(request: ContentRegistrationRequest, uniqueToken: string): Promise<ContentRegistrationResponse> {
+  async registerContent(request: ContentRegistrationRequest, uniqueToken: string): Promise<IngestionApiResponse> {
     const graphqlUrl = this.configService.get<string>('uniqueApi.ingestionGraphQLUrl')!;
 
     const gqlQuery = {
@@ -73,7 +74,7 @@ export class UniqueApiService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.post(graphqlUrl, gqlQuery, {
+        this.httpService.post<ApiResponse<IngestionApiResponse>>(graphqlUrl, gqlQuery, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${uniqueToken}`,

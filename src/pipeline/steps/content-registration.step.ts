@@ -5,6 +5,7 @@ import { UniqueApiService } from '../../common/unique-api/unique-api.service';
 import { ContentRegistrationRequest } from '../../common/unique-api/types/unique-api.types';
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../../common/metrics/metrics.service';
+import { AuthService } from '../../common/auth/auth.service';
 
 @Injectable()
 export class ContentRegistrationStep implements IPipelineStep {
@@ -12,6 +13,7 @@ export class ContentRegistrationStep implements IPipelineStep {
   readonly stepName = PipelineStep.CONTENT_REGISTRATION;
 
   constructor(
+    private readonly authService: AuthService,
     private readonly uniqueApiService: UniqueApiService,
     private readonly configService: ConfigService,
     private readonly metricsService: MetricsService,
@@ -21,14 +23,8 @@ export class ContentRegistrationStep implements IPipelineStep {
     const stepStartTime = Date.now();
 
     try {
-      this.logger.log(`[${context.correlationId}] Starting content registration for file: ${context.fileName}`);
-
-      // Get the unique API token from previous step
-      const uniqueToken = context.metadata.tokens?.uniqueApiToken;
-      if (!uniqueToken) {
-        throw new Error('Unique API token not found in context - token validation may have failed');
-      }
-
+      this.logger.debug(`[${context.correlationId}] Starting content registration for file: ${context.fileName}`);
+      const uniqueToken = await this.authService.getUniqueApiToken();
       const fileKey = this.generateFileKey(context);
 
       const registrationRequest: ContentRegistrationRequest = {
@@ -38,19 +34,18 @@ export class ContentRegistrationStep implements IPipelineStep {
         ownerType: 'SCOPE',
         scopeId: this.configService.get<string>('uniqueApi.scopeId')!,
         sourceOwnerType: 'COMPANY',
-        sourceKind: 'SHAREPOINT_ONLINE',
+        sourceKind: 'UNIQUE_BLOB_STORAGE',
         sourceName: this.extractSiteName(context.siteUrl),
       };
 
-      this.logger.log(`[${context.correlationId}] Registering content with key: ${fileKey}`);
-
+      this.logger.debug(`[${context.correlationId}] Registering content with key: ${fileKey}`);
       const registrationResponse = await this.uniqueApiService.registerContent(registrationRequest, uniqueToken);
 
       context.uploadUrl = registrationResponse.writeUrl;
       context.uniqueContentId = registrationResponse.id;
       context.metadata.registrationResponse = registrationResponse;
 
-      this.logger.log(`[${context.correlationId}] Content registration completed for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Content registration completed for file: ${context.fileName}`);
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);
@@ -62,25 +57,17 @@ export class ContentRegistrationStep implements IPipelineStep {
     }
   }
 
-  /**
-   * Generate a unique key for the file based on SharePoint metadata
-   */
   private generateFileKey(context: ProcessingContext): string {
     const siteId = context.metadata.siteId || 'unknown-site';
     const driveId = context.metadata.driveId || 'unknown-drive';
 
-    // Create a unique key based on SharePoint structure
     return `sharepoint_${siteId}_${driveId}_${context.fileId}`;
   }
 
-  /**
-   * Extract site name from site URL for source naming
-   */
   private extractSiteName(siteUrl: string): string {
     if (!siteUrl) return 'SharePoint';
 
     try {
-      // Extract site name from URL like "https://tenant.sharepoint.com/sites/sitename"
       const url = new URL(siteUrl);
       const pathParts = url.pathname.split('/').filter(Boolean);
 
