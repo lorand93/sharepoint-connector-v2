@@ -117,7 +117,7 @@ export class AuthService {
       // Cache the token
       const expiresAt = Date.now() + tokenData.expires_in * 1000;
       this.uniqueApiTokenCache = {
-        accessToken: tokenData.id_token,
+        accessToken: tokenData.access_token,
         expiresOn: expiresAt,
       };
 
