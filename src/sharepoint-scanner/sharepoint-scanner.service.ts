@@ -83,6 +83,7 @@ export class SharepointScannerService {
         diffResult.movedFiles.length,
       );
 
+      // TODO handle deleted files. Step to be implemented after we can test it (after we complete implementing file processing)
       const results = await this.loadJobsInQueue(diffResult, allFiles, totalFilesFound);
 
       this.metricsService.recordFilesQueued(results.length + 1);

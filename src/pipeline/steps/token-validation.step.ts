@@ -18,7 +18,7 @@ export class TokenValidationStep implements IPipelineStep {
     const stepStartTime = Date.now();
 
     try {
-      this.logger.log(`[${context.correlationId}] Starting token validation for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Starting token validation for file: ${context.fileName}`);
 
       const [graphToken, uniqueToken] = await Promise.all([this.authService.getGraphApiToken(), this.authService.getUniqueApiToken()]);
 
@@ -32,7 +32,7 @@ export class TokenValidationStep implements IPipelineStep {
         validatedAt: new Date().toISOString(),
       };
 
-      this.logger.log(`[${context.correlationId}] Token validation completed - Both tokens are valid and ready`);
+      this.logger.debug(`[${context.correlationId}] Token validation completed - Both tokens are valid and ready`);
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);

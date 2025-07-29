@@ -19,7 +19,7 @@ export class StorageUploadStep implements IPipelineStep {
     const stepStartTime = Date.now();
 
     try {
-      this.logger.log(`[${context.correlationId}] Starting storage upload for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Starting storage upload for file: ${context.fileName}`);
 
       if (!context.contentBuffer) {
         throw new Error('Content buffer not found - content fetching may have failed');
@@ -48,7 +48,7 @@ export class StorageUploadStep implements IPipelineStep {
   async cleanup(context: ProcessingContext): Promise<void> {
     if (context.contentBuffer) {
       context.contentBuffer = undefined;
-      this.logger.log(`[${context.correlationId}] Released content buffer memory`);
+      this.logger.debug(`[${context.correlationId}] Released content buffer memory`);
     }
   }
 

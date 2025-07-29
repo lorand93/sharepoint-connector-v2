@@ -20,7 +20,7 @@ export class ContentFetchingStep implements IPipelineStep {
     const stepStartTime = Date.now();
 
     try {
-      this.logger.log(`[${context.correlationId}] Starting content fetching for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Starting content fetching for file: ${context.fileName}`);
 
       const driveId = this.extractDriveId(context);
       const itemId = context.fileId;
@@ -75,6 +75,6 @@ export class ContentFetchingStep implements IPipelineStep {
   }
 
   async cleanup(context: ProcessingContext): Promise<void> {
-    this.logger.log(`[${context.correlationId}] Content fetching cleanup completed (buffer preserved for next steps)`);
+    this.logger.debug(`[${context.correlationId}] Content fetching cleanup completed (buffer preserved for next steps)`);
   }
 }
