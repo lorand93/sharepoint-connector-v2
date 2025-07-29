@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import {
-  ConfidentialClientApplication,
-  AuthenticationResult,
-} from '@azure/msal-node';
+import { ConfidentialClientApplication, AuthenticationResult } from '@azure/msal-node';
 import { Configuration } from '@azure/msal-node/src/config/Configuration';
 
 @Injectable()
@@ -45,13 +42,10 @@ export class AuthService {
 
     try {
       this.logger.debug('Acquiring new Microsoft Graph API token...');
-      const response =
-        await this.msalClient.acquireTokenByClientCredential(tokenRequest);
+      const response = await this.msalClient.acquireTokenByClientCredential(tokenRequest);
 
       if (!response?.accessToken) {
-        throw new Error(
-          'Failed to acquire Graph API token: Response was null or did not contain an access token.',
-        );
+        throw new Error('Failed to acquire Graph API token: Response was null or did not contain an access token.');
       }
 
       this.graphApiTokenCache = response;
@@ -64,10 +58,7 @@ export class AuthService {
   }
 
   public async getUniqueApiToken(): Promise<string> {
-    if (
-      this.uniqueApiTokenCache &&
-      this.uniqueApiTokenCache.expiresOn > Date.now() + 300000
-    ) {
+    if (this.uniqueApiTokenCache && this.uniqueApiTokenCache.expiresOn > Date.now() + 300000) {
       this.logger.debug('Returning cached Unique API token.');
       return this.uniqueApiTokenCache.accessToken;
     }
@@ -75,18 +66,10 @@ export class AuthService {
     this.logger.debug('Acquiring new Unique API token from Zitadel...');
 
     try {
-      const oAuthTokenUrl = this.configService.get<string>(
-        'uniqueApi.zitadelOAuthTokenUrl',
-      )!;
-      const clientId = this.configService.get<string>(
-        'uniqueApi.zitadelClientId',
-      )!;
-      const clientSecret = this.configService.get<string>(
-        'uniqueApi.zitadelClientSecret',
-      )!;
-      const projectId = this.configService
-        .get<string>('uniqueApi.zitadelProjectId')!
-        .replace(/\D/g, '');
+      const oAuthTokenUrl = this.configService.get<string>('uniqueApi.zitadelOAuthTokenUrl')!;
+      const clientId = this.configService.get<string>('uniqueApi.zitadelClientId')!;
+      const clientSecret = this.configService.get<string>('uniqueApi.zitadelClientSecret')!;
+      const projectId = this.configService.get<string>('uniqueApi.zitadelProjectId')!.replace(/\D/g, '');
 
       const params = new URLSearchParams({
         scope: `openid profile email urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:projects:roles urn:zitadel:iam:org:project:id:${projectId}:aud`,
@@ -109,9 +92,7 @@ export class AuthService {
       };
 
       if (!tokenData.access_token || !tokenData.expires_in) {
-        throw new Error(
-          'Invalid token response: missing access_token or expires_in',
-        );
+        throw new Error('Invalid token response: missing access_token or expires_in');
       }
 
       // Cache the token
@@ -121,16 +102,11 @@ export class AuthService {
         expiresOn: expiresAt,
       };
 
-      this.logger.debug(
-        `Successfully acquired new Zitadel token that expires in ${tokenData.expires_in} seconds at ${new Date(expiresAt).toISOString()}`,
-      );
+      this.logger.debug(`Successfully acquired new Zitadel token that expires in ${tokenData.expires_in} seconds at ${new Date(expiresAt).toISOString()}`);
 
       return this.uniqueApiTokenCache.accessToken;
     } catch (error) {
-      this.logger.error(
-        'Failed to acquire Unique API token from Zitadel:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Failed to acquire Unique API token from Zitadel:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -139,9 +115,6 @@ export class AuthService {
     if (!this.graphApiTokenCache?.expiresOn) {
       return true;
     }
-    return (
-      this.graphApiTokenCache.expiresOn.getTime() <=
-      Date.now() + this.TOKEN_EXPIRATION_BUFFER_MS
-    );
+    return this.graphApiTokenCache.expiresOn.getTime() <= Date.now() + this.TOKEN_EXPIRATION_BUFFER_MS;
   }
 }

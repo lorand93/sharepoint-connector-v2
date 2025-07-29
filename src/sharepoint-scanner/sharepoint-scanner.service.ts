@@ -19,7 +19,8 @@ export class SharepointScannerService {
     private readonly queueService: QueueService,
     private readonly uniqueApiService: UniqueApiService,
     private readonly metricsService: MetricsService,
-  ) {}
+  ) {
+  }
 
   async scanForWork(): Promise<void> {
     const scanStartTime = Date.now();
@@ -28,27 +29,19 @@ export class SharepointScannerService {
     const sitesToScan = this.configService.get<string[]>('sharepoint.sites');
 
     if (!sitesToScan || sitesToScan.length === 0) {
-      this.logger.warn(
-        'No SharePoint sites configured for scanning. Please check your configuration.',
-      );
+      this.logger.warn('No SharePoint sites configured for scanning. Please check your configuration.');
       return;
     }
 
     try {
-      // Step 1: Collect all syncable files from all sites
-      this.logger.log(
-        `Starting scan of ${sitesToScan.length} SharePoint sites...`,
-      );
+      this.logger.log(`Starting scan of ${sitesToScan.length} SharePoint sites...`);
       const allFiles: DriveItem[] = [];
-      let totalFilesFound = 0;
 
+      let totalFilesFound = 0;
       for (const siteId of sitesToScan) {
         try {
-          const files =
-            await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
-          this.logger.log(
-            `Found ${files.length} syncable files in site ${siteId}`,
-          );
+          const files = await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
+          this.logger.debug(`Found ${files.length} syncable files in site ${siteId}`);
           allFiles.push(...files);
           totalFilesFound += files.length;
           this.metricsService.recordFilesDiscovered(files.length, siteId);
@@ -63,11 +56,8 @@ export class SharepointScannerService {
         return;
       }
 
-      this.logger.log(
-        `Collected ${totalFilesFound} total syncable files. Performing file diff...`,
-      );
+      this.logger.debug(`Collected ${totalFilesFound} total syncable files. Performing file diff...`);
 
-      // Step 2: Convert to FileDiffFileItem format for the diff API
       const fileDiffItems: FileDiffFileItem[] = allFiles.map((file) => ({
         id: file.id,
         name: file.name,
@@ -76,18 +66,15 @@ export class SharepointScannerService {
         key: `sharepoint_file_${file.id}`,
       }));
 
-      // Step 3: Get Unique API token and perform file diff
       const uniqueToken = await this.authService.getUniqueApiToken();
       const diffResult = await this.uniqueApiService.performFileDiff(
         fileDiffItems,
         uniqueToken,
       );
 
-      this.logger.log(
-        `File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing, ${diffResult.unchangedFiles.length} unchanged, ${diffResult.deletedFiles.length} deleted`,
-      );
+      this.logger.log(`File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing, 
+      ${diffResult.unchangedFiles.length} unchanged, ${diffResult.deletedFiles.length} deleted`);
 
-      // Record file diff metrics
       this.metricsService.recordFileDiffResults(
         diffResult.newAndUpdatedFiles.length,
         diffResult.unchangedFiles.length,
@@ -95,45 +82,36 @@ export class SharepointScannerService {
         diffResult.movedFiles.length,
       );
 
-      // Step 4: Queue only the files that need processing (new and updated)
       const newFileKeys = new Set(diffResult.newAndUpdatedFiles);
       const filesToProcess = allFiles.filter((file) =>
         newFileKeys.has(`sharepoint_file_${file.id}`),
       );
 
-      let filesQueued = 0;
-      for (const file of filesToProcess) {
-        try {
-          await this.queueService.addFileProcessingJob(file);
-          filesQueued++;
-        } catch (error) {
-          this.logger.error(
-            `Failed to queue file ${file.name} (${file.id}):`,
-            error.message,
-          );
-        }
-      }
+      const addFileProcessingJobPromises = filesToProcess.map(file => this.queueService.addFileProcessingJob(file));
 
-      this.logger.log(
-        `Scan complete. ${filesQueued} files added to processing queue out of ${totalFilesFound} total files scanned.`,
-      );
-
-      // Record queued files metric
-      this.metricsService.recordFilesQueued(filesQueued);
-
-      // Log summary of diff results for monitoring
-      if (diffResult.deletedFiles.length > 0) {
-        this.logger.log(
-          `Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`,
+      try {
+        await Promise.all(addFileProcessingJobPromises);
+      } catch (error) {
+        this.logger.error(
+          `Failed to queue file ${file.name} (${file.id}):`,
+          error.message,
         );
-      }
 
-      // Record successful scan completion
-      const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
-      this.metricsService.recordScanCompleted(scanDurationSeconds);
-    } catch (error) {
-      this.logger.error('Failed to complete SharePoint scan:', error.stack);
-      this.metricsService.recordScanError('global', 'scan_failed');
+        this.logger.log(`Scan complete. ${addFileProcessingJobPromises.length + 1} 
+        files added to processing queue out of ${totalFilesFound} total files scanned.`);
+
+        this.metricsService.recordFilesQueued(addFileProcessingJobPromises.length + 1);
+
+        if (diffResult.deletedFiles.length > 0) {
+          this.logger.debug(`Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`);
+        }
+
+        const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
+        this.metricsService.recordScanCompleted(scanDurationSeconds);
+      } catch (error) {
+        this.logger.error('Failed to complete SharePoint scan:', error.stack);
+        this.metricsService.recordScanError('global', 'scan_failed');
+      }
     }
   }
 }
