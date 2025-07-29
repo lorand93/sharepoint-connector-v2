@@ -42,8 +42,10 @@ export class SharepointScannerService {
         try {
           const files = await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
           this.logger.debug(`Found ${files.length} syncable files in site ${siteId}`);
+
           allFiles.push(...files);
           totalFilesFound += files.length;
+
           this.metricsService.recordFilesDiscovered(files.length, siteId);
         } catch (error) {
           this.logger.error(`Failed to scan site ${siteId}:`, error.stack);
@@ -87,31 +89,37 @@ export class SharepointScannerService {
         newFileKeys.has(`sharepoint_file_${file.id}`),
       );
 
-      const addFileProcessingJobPromises = filesToProcess.map(file => this.queueService.addFileProcessingJob(file));
+      const jobPromises = filesToProcess.map(file =>
+        this.queueService.addFileProcessingJob(file),
+      );
 
-      try {
-        await Promise.all(addFileProcessingJobPromises);
-      } catch (error) {
-        this.logger.error(
-          `Failed to queue file ${file.name} (${file.id}):`,
-          error.message,
-        );
+      const results = await Promise.allSettled(jobPromises);
 
-        this.logger.log(`Scan complete. ${addFileProcessingJobPromises.length + 1} 
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const file = filesToProcess[index];
+          this.logger.error(
+            `Failed to queue file ${file.name} (${file.id}):`,
+            result.reason,
+          );
+        }
+      });
+
+      this.logger.log(`Scan complete. ${addFileProcessingJobPromises.length + 1} 
         files added to processing queue out of ${totalFilesFound} total files scanned.`);
 
-        this.metricsService.recordFilesQueued(addFileProcessingJobPromises.length + 1);
+      this.metricsService.recordFilesQueued(addFileProcessingJobPromises.length + 1);
 
-        if (diffResult.deletedFiles.length > 0) {
-          this.logger.debug(`Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`);
-        }
-
-        const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
-        this.metricsService.recordScanCompleted(scanDurationSeconds);
-      } catch (error) {
-        this.logger.error('Failed to complete SharePoint scan:', error.stack);
-        this.metricsService.recordScanError('global', 'scan_failed');
+      if (diffResult.deletedFiles.length > 0) {
+        this.logger.debug(`Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`);
       }
+
+      const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
+      this.metricsService.recordScanCompleted(scanDurationSeconds);
+    } catch (error) {
+      this.logger.error('Failed to complete SharePoint scan:', error.stack);
+      this.metricsService.recordScanError('global', 'scan_failed');
     }
   }
 }
+
