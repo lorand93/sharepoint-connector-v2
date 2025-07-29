@@ -5,6 +5,7 @@ import { AuthModule } from '../common/auth/auth.module';
 import { MicrosoftGraphModule } from '../common/microsoft-graph/microsoft-graph.module';
 import { HttpModule } from '@nestjs/axios';
 import { QueueModule } from '../queue/queue.module';
+import { UniqueApiModule } from '../common/unique-api/unique-api.module';
 
 @Module({
   imports: [
@@ -12,10 +13,10 @@ import { QueueModule } from '../queue/queue.module';
     AuthModule,
     MicrosoftGraphModule,
     HttpModule,
-    QueueModule
+    QueueModule,
+    UniqueApiModule,
   ],
   providers: [SharepointScannerService],
   exports: [SharepointScannerService],
 })
-export class SharepointScannerModule {
-}
+export class SharepointScannerModule {}

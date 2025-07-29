@@ -1,4 +1,3 @@
-
 import { Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
@@ -26,8 +25,10 @@ export class JobProcessorService extends WorkerHost {
         const result = await this.pipelineService.processFile(file);
 
         if (result.success) {
-          this.logger.log(`Job ${job.id} completed successfully. Pipeline duration: ${result.totalDuration}ms`);
-          
+          this.logger.log(
+            `Job ${job.id} completed successfully. Pipeline duration: ${result.totalDuration}ms`,
+          );
+
           const jobResult: JobResult = {
             success: true,
             fileId: file.id,
@@ -36,10 +37,12 @@ export class JobProcessorService extends WorkerHost {
             duration: result.totalDuration,
             completedSteps: result.completedSteps,
           };
-          
+
           return jobResult;
         } else {
-          this.logger.error(`Job ${job.id} failed. Error: ${result.error?.message}`);
+          this.logger.error(
+            `Job ${job.id} failed. Error: ${result.error?.message}`,
+          );
           throw result.error || new Error('Pipeline processing failed');
         }
       } catch (error) {

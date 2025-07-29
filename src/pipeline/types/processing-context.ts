@@ -4,21 +4,21 @@ export interface ProcessingContext {
   fileId: string;
   fileName: string;
   fileSize: number;
-  
+
   // SharePoint metadata
   siteUrl: string;
   libraryName: string;
   downloadUrl?: string;
-  
+
   // Processing state
   uploadUrl?: string;
   uniqueContentId?: string;
   contentBuffer?: Buffer;
-  
+
   // Timing and metrics
   startTime: Date;
   stepTimings: Map<string, number>;
-  
+
   // Additional metadata
   metadata: Record<string, any>;
 }
@@ -47,4 +47,4 @@ export enum PipelineStep {
   CONTENT_REGISTRATION = 'content-registration',
   STORAGE_UPLOAD = 'storage-upload',
   INGESTION_FINALIZATION = 'ingestion-finalization',
-} 
+}

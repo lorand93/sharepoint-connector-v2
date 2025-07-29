@@ -18,4 +18,4 @@ export interface IPipelineStep {
    * @param context - The processing context
    */
   cleanup?(context: ProcessingContext): Promise<void>;
-} 
+}

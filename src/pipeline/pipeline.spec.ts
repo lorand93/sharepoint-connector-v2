@@ -56,29 +56,33 @@ describe('PipelineService Integration Test', () => {
     // But it should successfully create the context and start the pipeline
     try {
       const result = await service.processFile(mockFile);
-      
+
       // If it somehow succeeds (with mocked dependencies), verify the result
       expect(result.context.correlationId).toBeDefined();
       expect(result.context.fileId).toBe('test-file-id-123');
       expect(result.context.fileName).toBe('test-document.pdf');
       expect(result.context.metadata.driveId).toBe('test-drive-id-456');
-      
     } catch (error) {
       // Expected to fail at content fetching step due to missing real credentials
       // But we can verify the error indicates we got to the content fetching step
       expect(error.message).toContain('Drive ID not found'); // or some SharePoint API error
-      
+
       // The important thing is that we got past the pipeline setup
-      console.log('Pipeline setup test passed - failed at content fetching as expected:', error.message);
+      console.log(
+        'Pipeline setup test passed - failed at content fetching as expected:',
+        error.message,
+      );
     }
   });
 
   it('should have correct configuration values', () => {
     // Test that our pipeline configuration is properly loaded
-    const stepTimeout = configService.get<number>('pipeline.stepTimeoutSeconds');
+    const stepTimeout = configService.get<number>(
+      'pipeline.stepTimeoutSeconds',
+    );
     const maxFileSize = configService.get<number>('pipeline.maxFileSizeBytes');
-    
+
     expect(stepTimeout).toBe(30); // default
     expect(maxFileSize).toBe(209715200); // 200MB default
   });
-}); 
+});

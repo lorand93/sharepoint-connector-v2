@@ -7,7 +7,9 @@ import { InjectQueue } from '@nestjs/bullmq';
 export class QueueService implements OnModuleDestroy {
   private readonly queue: Queue;
 
-  constructor(@InjectQueue('sharepoint-tasks') private readonly taskQueue: Queue) {}
+  constructor(
+    @InjectQueue('sharepoint-tasks') private readonly taskQueue: Queue,
+  ) {}
 
   async addFileProcessingJob(file: DriveItem): Promise<void> {
     await this.taskQueue.add('process-file', file, {
