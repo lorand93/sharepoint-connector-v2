@@ -29,26 +29,13 @@ export class ContentFetchingStep implements IPipelineStep {
         throw new Error('Drive ID not found in file metadata');
       }
 
-      this.logger.log(`[${context.correlationId}] Downloading file content - Drive: ${driveId}, Item: ${itemId}`);
-
       const contentBuffer = await this.sharepointApiService.downloadFileContent(driveId, itemId);
 
-      const fileSizeBytes = contentBuffer.length;
-      const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes')!;
-
-      if (fileSizeBytes > maxFileSizeBytes) {
-        throw new Error(`File size ${fileSizeBytes} bytes exceeds maximum limit of ${maxFileSizeBytes} bytes`);
-      }
-
       context.contentBuffer = contentBuffer;
-      context.fileSize = fileSizeBytes;
+      context.fileSize = contentBuffer.length;
 
-      const mimeType = context.metadata.mimeType;
-      if (mimeType) {
-        this.validateMimeType(mimeType, context.correlationId);
-      }
-
-      this.logger.log(`[${context.correlationId}] Content fetching completed for file: ${context.fileName} (${Math.round(fileSizeBytes / 1024 / 1024)}MB)`);
+      this.validateMimeType(context.metadata.mimeType, context.correlationId);
+      this.logger.debug(`[${context.correlationId}] Content fetching completed for file: ${context.fileName} (${Math.round(contentBuffer.length / 1024 / 1024)}MB)`);
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);
@@ -85,8 +72,6 @@ export class ContentFetchingStep implements IPipelineStep {
     if (allowedMimeTypes.length > 0 && !allowedMimeTypes.includes(mimeType)) {
       throw new Error(`MIME type ${mimeType} is not allowed. Allowed types: ${allowedMimeTypes.join(', ')}`);
     }
-
-    this.logger.log(`[${correlationId}] MIME type validation passed: ${mimeType}`);
   }
 
   async cleanup(context: ProcessingContext): Promise<void> {

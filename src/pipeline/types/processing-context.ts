@@ -10,7 +10,7 @@ export interface ProcessingContext {
 
   uploadUrl?: string;
   uniqueContentId?: string;
-  contentBuffer?: Buffer;
+  contentBuffer?: Buffer | undefined;
 
   startTime: Date;
 
