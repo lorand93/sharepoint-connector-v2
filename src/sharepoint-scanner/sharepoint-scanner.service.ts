@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../common/auth/auth.service';
 import { SharepointApiService } from '../common/microsoft-graph/sharepoint-api.service';
 import { QueueService } from '../queue/queue.service';
+import { UniqueApiService } from '../common/unique-api/unique-api.service';
+import { FileDiffFileItem } from '../common/unique-api/types/unique-api.types';
+import { DriveItem } from '../common/microsoft-graph/types/sharepoint.types';
+import { MetricsService } from '../common/metrics/metrics.service';
 
 @Injectable()
 export class SharepointScannerService {
@@ -12,38 +16,124 @@ export class SharepointScannerService {
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
     private readonly sharepointApiService: SharepointApiService,
-    private readonly queueService: QueueService
-  ) {
-  }
+    private readonly queueService: QueueService,
+    private readonly uniqueApiService: UniqueApiService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async scanForWork(): Promise<void> {
-    let totalFilesFound = 0;
+    const scanStartTime = Date.now();
+    this.metricsService.recordScanStarted();
+
     const sitesToScan = this.configService.get<string[]>('sharepoint.sites');
 
     if (!sitesToScan || sitesToScan.length === 0) {
-      this.logger.warn('No SharePoint sites configured for scanning. Please check your configuration.');
+      this.logger.warn(
+        'No SharePoint sites configured for scanning. Please check your configuration.',
+      );
       return;
     }
 
     try {
+      // Step 1: Collect all syncable files from all sites
+      this.logger.log(
+        `Starting scan of ${sitesToScan.length} SharePoint sites...`,
+      );
+      const allFiles: DriveItem[] = [];
+      let totalFilesFound = 0;
+
       for (const siteId of sitesToScan) {
         try {
-          const files = await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
-          this.logger.log(`Found ${files.length} files to sync in site ${siteId}.`);
-
-          for (const file of files) {
-            await this.queueService.addFileProcessingJob(file);
-          }
-
+          const files =
+            await this.sharepointApiService.findAllSyncableFilesForSite(siteId);
+          this.logger.log(
+            `Found ${files.length} syncable files in site ${siteId}`,
+          );
+          allFiles.push(...files);
           totalFilesFound += files.length;
+          this.metricsService.recordFilesDiscovered(files.length, siteId);
         } catch (error) {
-          this.logger.error(`Failed to scan site ${siteId}.`, error.stack);
+          this.logger.error(`Failed to scan site ${siteId}:`, error.stack);
+          this.metricsService.recordScanError(siteId, 'site_scan_failed');
         }
       }
-      this.logger.log(`Scan complete. Total files added to queue: ${totalFilesFound}`);
 
+      if (allFiles.length === 0) {
+        this.logger.log('No syncable files found across all sites.');
+        return;
+      }
+
+      this.logger.log(
+        `Collected ${totalFilesFound} total syncable files. Performing file diff...`,
+      );
+
+      // Step 2: Convert to FileDiffFileItem format for the diff API
+      const fileDiffItems: FileDiffFileItem[] = allFiles.map((file) => ({
+        id: file.id,
+        name: file.name,
+        url: file.webUrl,
+        updatedAt: file.listItem.lastModifiedDateTime,
+        key: `sharepoint_file_${file.id}`,
+      }));
+
+      // Step 3: Get Unique API token and perform file diff
+      const uniqueToken = await this.authService.getUniqueApiToken();
+      const diffResult = await this.uniqueApiService.performFileDiff(
+        fileDiffItems,
+        uniqueToken,
+      );
+
+      this.logger.log(
+        `File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing, ${diffResult.unchangedFiles.length} unchanged, ${diffResult.deletedFiles.length} deleted`,
+      );
+
+      // Record file diff metrics
+      this.metricsService.recordFileDiffResults(
+        diffResult.newAndUpdatedFiles.length,
+        diffResult.unchangedFiles.length,
+        diffResult.deletedFiles.length,
+        diffResult.movedFiles.length,
+      );
+
+      // Step 4: Queue only the files that need processing (new and updated)
+      const newFileKeys = new Set(diffResult.newAndUpdatedFiles);
+      const filesToProcess = allFiles.filter((file) =>
+        newFileKeys.has(`sharepoint_file_${file.id}`),
+      );
+
+      let filesQueued = 0;
+      for (const file of filesToProcess) {
+        try {
+          await this.queueService.addFileProcessingJob(file);
+          filesQueued++;
+        } catch (error) {
+          this.logger.error(
+            `Failed to queue file ${file.name} (${file.id}):`,
+            error.message,
+          );
+        }
+      }
+
+      this.logger.log(
+        `Scan complete. ${filesQueued} files added to processing queue out of ${totalFilesFound} total files scanned.`,
+      );
+
+      // Record queued files metric
+      this.metricsService.recordFilesQueued(filesQueued);
+
+      // Log summary of diff results for monitoring
+      if (diffResult.deletedFiles.length > 0) {
+        this.logger.log(
+          `Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`,
+        );
+      }
+
+      // Record successful scan completion
+      const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
+      this.metricsService.recordScanCompleted(scanDurationSeconds);
     } catch (error) {
-      this.logger.error('Failed to complete SharePoint scan due to authentication or other error.', error.stack);
+      this.logger.error('Failed to complete SharePoint scan:', error.stack);
+      this.metricsService.recordScanError('global', 'scan_failed');
     }
   }
 }
