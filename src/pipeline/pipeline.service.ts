@@ -26,27 +26,15 @@ export class PipelineService {
     private readonly ingestionFinalizationStep: IngestionFinalizationStep,
     private readonly metricsService: MetricsService,
   ) {
-    // Initialize pipeline steps in order
-    this.steps = [
-      this.tokenValidationStep,
-      this.contentFetchingStep,
-      this.contentRegistrationStep,
-      this.storageUploadStep,
-      this.ingestionFinalizationStep,
-    ];
+    this.steps = [this.tokenValidationStep, this.contentFetchingStep, this.contentRegistrationStep, this.storageUploadStep, this.ingestionFinalizationStep];
 
-    // Get step timeout from configuration (default: 30 seconds)
     this.stepTimeoutMs = (this.configService.get<number>('STEP_TIMEOUT_SECONDS') || 30) * 1000;
   }
 
-  /**
-   * Process a single SharePoint file through the complete pipeline
-   */
   async processFile(file: DriveItem): Promise<PipelineResult> {
     const correlationId = randomUUID();
     const startTime = new Date();
 
-    // Initialize processing context
     const context: ProcessingContext = {
       correlationId,
       fileId: file.id,
@@ -56,11 +44,10 @@ export class PipelineService {
       libraryName: file.parentReference?.driveId || '',
       downloadUrl: file.webUrl,
       startTime,
-      stepTimings: new Map(),
       metadata: {
         mimeType: file.file?.mimeType,
-        isFolder: !!file.folder,
-        listItemFields: file.listItem?.fields,
+        isFolder: Boolean(file.folder),
+        listItemFields: file.listItem.fields,
         driveId: file.parentReference?.driveId,
         siteId: file.parentReference?.siteId,
         lastModifiedDateTime: file.lastModifiedDateTime,
@@ -72,37 +59,28 @@ export class PipelineService {
     let currentStepIndex = 0;
 
     try {
-      this.logger.log(`[${correlationId}] Starting pipeline for file: ${file.name} (${file.id})`);
+      this.logger.debug(`[${correlationId}] Starting pipeline for file: ${file.name} (${file.id})`);
 
-      // Execute each step in sequence
       for (let i = 0; i < this.steps.length; i++) {
         currentStepIndex = i;
         const step = this.steps[i];
 
-        this.logger.log(`[${correlationId}] Executing step ${i + 1}/${this.steps.length}: ${step.stepName}`);
+        this.logger.debug(`[${correlationId}] Executing step ${i + 1}/${this.steps.length}: ${step.stepName}`);
 
-        // Execute step with timeout
         await this.executeStepWithTimeout(step, context);
         completedSteps.push(step.stepName);
 
-        this.logger.log(`[${correlationId}] Completed step: ${step.stepName}`);
+        this.logger.debug(`[${correlationId}] Completed step: ${step.stepName}`);
 
         await this.cleanupStep(step, context);
       }
 
       const totalDuration = Date.now() - startTime.getTime();
-      
-      this.logger.log(`[${correlationId}] Pipeline completed successfully in ${totalDuration}ms for file: ${file.name}`);
-      this.logStepTimings(correlationId, context.stepTimings);
 
-      // Record pipeline metrics
+      this.logger.log(`[${correlationId}] Pipeline completed successfully in ${totalDuration}ms for file: ${file.name}`);
+
       this.metricsService.recordPipelineCompleted(true, totalDuration / 1000);
       this.metricsService.recordFileSize(context.fileSize);
-
-      // Record individual step timings
-      context.stepTimings.forEach((durationMs, stepName) => {
-        this.metricsService.recordPipelineStepDuration(stepName, durationMs / 1000);
-      });
 
       await this.finalCleanup(context);
 
@@ -112,17 +90,15 @@ export class PipelineService {
         completedSteps,
         totalDuration,
       };
-
     } catch (error) {
       const totalDuration = Date.now() - startTime.getTime();
-      
+
       this.logger.error(`[${correlationId}] Pipeline failed at step: ${this.steps[currentStepIndex]?.stepName} after ${totalDuration}ms`, error.stack);
 
       if (this.steps[currentStepIndex]?.cleanup) {
         await this.cleanupStep(this.steps[currentStepIndex], context);
       }
 
-      // Record failed pipeline metrics
       this.metricsService.recordPipelineCompleted(false, totalDuration / 1000);
 
       return {
@@ -146,10 +122,7 @@ export class PipelineService {
     });
 
     try {
-      await Promise.race([
-        step.execute(context),
-        timeoutPromise,
-      ]);
+      await Promise.race([step.execute(context), timeoutPromise]);
     } catch (error) {
       this.logger.error(`[${context.correlationId}] Step ${step.stepName} failed: ${error.message}`);
       throw error;
@@ -162,7 +135,7 @@ export class PipelineService {
   private async cleanupSteps(context: ProcessingContext, completedStepNames: string[]): Promise<void> {
     for (const stepName of completedStepNames) {
       try {
-        const step = this.steps.find(s => s.stepName === stepName);
+        const step = this.steps.find((s) => s.stepName === stepName);
         if (step?.cleanup) {
           this.logger.log(`[${context.correlationId}] Cleaning up step: ${stepName}`);
           await step.cleanup(context);
@@ -172,8 +145,6 @@ export class PipelineService {
       }
     }
   }
-
-
 
   /**
    * Cleanup a single step
@@ -190,31 +161,16 @@ export class PipelineService {
     }
   }
 
-  /**
-   * Final cleanup for any remaining resources after successful pipeline completion
-   */
   private async finalCleanup(context: ProcessingContext): Promise<void> {
     try {
       if (context.contentBuffer) {
         context.contentBuffer = undefined;
         this.logger.log(`[${context.correlationId}] Released remaining content buffer memory`);
       }
-      
+
       context.metadata = {};
     } catch (cleanupError) {
       this.logger.error(`[${context.correlationId}] Final cleanup failed:`, cleanupError);
     }
   }
-
-  /**
-   * Log step timings for observability
-   */
-  private logStepTimings(correlationId: string, stepTimings: Map<string, number>): void {
-    const timings: Record<string, number> = {};
-    stepTimings.forEach((duration, stepName) => {
-      timings[stepName] = duration;
-    });
-    
-    this.logger.log(`[${correlationId}] Step timings: ${JSON.stringify(timings, null, 2)}`);
-  }
-} 
+}

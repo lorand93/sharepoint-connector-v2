@@ -68,18 +68,13 @@ describe('PipelineService Integration Test', () => {
       expect(error.message).toContain('Drive ID not found'); // or some SharePoint API error
 
       // The important thing is that we got past the pipeline setup
-      console.log(
-        'Pipeline setup test passed - failed at content fetching as expected:',
-        error.message,
-      );
+      console.log('Pipeline setup test passed - failed at content fetching as expected:', error.message);
     }
   });
 
   it('should have correct configuration values', () => {
     // Test that our pipeline configuration is properly loaded
-    const stepTimeout = configService.get<number>(
-      'pipeline.stepTimeoutSeconds',
-    );
+    const stepTimeout = configService.get<number>('pipeline.stepTimeoutSeconds');
     const maxFileSize = configService.get<number>('pipeline.maxFileSizeBytes');
 
     expect(stepTimeout).toBe(30); // default

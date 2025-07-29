@@ -23,14 +23,8 @@ export class UniqueApiService {
   /**
    * Registers content with Unique API and returns upload URL
    */
-  async registerContent(
-    request: ContentRegistrationRequest,
-    uniqueToken: string,
-  ): Promise<ContentRegistrationResponse> {
-
-    const graphqlUrl = this.configService.get<string>(
-      'uniqueApi.ingestionGraphQLUrl',
-    )!;
+  async registerContent(request: ContentRegistrationRequest, uniqueToken: string): Promise<ContentRegistrationResponse> {
+    const graphqlUrl = this.configService.get<string>('uniqueApi.ingestionGraphQLUrl')!;
 
     const gqlQuery = {
       query: `
@@ -88,17 +82,12 @@ export class UniqueApiService {
       );
 
       if (!response.data?.data?.contentUpsert) {
-        throw new Error(
-          'Invalid response from Unique API content registration',
-        );
+        throw new Error('Invalid response from Unique API content registration');
       }
 
       return response.data.data.contentUpsert;
     } catch (error) {
-      this.logger.error(
-        'Content registration failed:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Content registration failed:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -106,14 +95,8 @@ export class UniqueApiService {
   /**
    * Performs file diff to determine which files need processing
    */
-  async performFileDiff(
-    fileList: FileDiffFileItem[],
-    uniqueToken: string,
-  ): Promise<FileDiffResponse> {
-
-    const ingestionUrl = this.configService.get<string>(
-      'uniqueApi.ingestionUrl',
-    )!;
+  async performFileDiff(fileList: FileDiffFileItem[], uniqueToken: string): Promise<FileDiffResponse> {
+    const ingestionUrl = this.configService.get<string>('uniqueApi.ingestionUrl')!;
     const fileDiffUrl = `${ingestionUrl}/file-diff`;
     const scopeId = this.configService.get<string>('uniqueApi.scopeId')!;
 
@@ -142,10 +125,7 @@ export class UniqueApiService {
 
       return response.data as FileDiffResponse;
     } catch (error) {
-      this.logger.error(
-        'File diff failed:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('File diff failed:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -153,14 +133,8 @@ export class UniqueApiService {
   /**
    * Finalizes ingestion after content upload
    */
-  async finalizeIngestion(
-    request: IngestionFinalizationRequest,
-    uniqueToken: string,
-  ): Promise<{ id: string }> {
-
-    const graphqlUrl = this.configService.get<string>(
-      'uniqueApi.ingestionGraphQLUrl',
-    )!;
+  async finalizeIngestion(request: IngestionFinalizationRequest, uniqueToken: string): Promise<{ id: string }> {
+    const graphqlUrl = this.configService.get<string>('uniqueApi.ingestionGraphQLUrl')!;
 
     const gqlQuery = {
       query: `
@@ -200,20 +174,13 @@ export class UniqueApiService {
       );
 
       if (!response.data?.data?.contentUpsert?.id) {
-        throw new Error(
-          'Invalid response from Unique API ingestion finalization',
-        );
+        throw new Error('Invalid response from Unique API ingestion finalization');
       }
 
       return { id: response.data.data.contentUpsert.id };
     } catch (error) {
-      this.logger.error(
-        'Ingestion finalization failed:',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Ingestion finalization failed:', error.response?.data || error.message);
       throw error;
     }
   }
-
-
 }

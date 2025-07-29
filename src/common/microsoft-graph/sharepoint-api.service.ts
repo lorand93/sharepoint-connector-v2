@@ -17,25 +17,18 @@ export class SharepointApiService {
     private readonly configService: ConfigService,
   ) {}
 
-  public async findAllSyncableFilesForSite(
-    siteId: string,
-  ): Promise<DriveItem[]> {
+  public async findAllSyncableFilesForSite(siteId: string): Promise<DriveItem[]> {
     this.logger.log(`Starting recursive file scan for site: ${siteId}`);
     const drives = await this.getDrivesForSite(siteId);
     const allSyncableFiles: DriveItem[] = [];
 
     for (const drive of drives) {
       this.logger.log(`Scanning library (drive): ${drive.name} (${drive.id})`);
-      const filesInDrive = await this.recursivelyFetchAndFilterFiles(
-        drive.id,
-        'root',
-      );
+      const filesInDrive = await this.recursivelyFetchAndFilterFiles(drive.id, 'root');
       allSyncableFiles.push(...filesInDrive);
     }
 
-    this.logger.log(
-      `Completed scan for site ${siteId}. Found ${allSyncableFiles.length} syncable files.`,
-    );
+    this.logger.log(`Completed scan for site ${siteId}. Found ${allSyncableFiles.length} syncable files.`);
     return allSyncableFiles;
   }
 
@@ -54,17 +47,11 @@ export class SharepointApiService {
     return allDrives;
   }
 
-  private async recursivelyFetchAndFilterFiles(
-    driveId: string,
-    itemId: string,
-  ): Promise<DriveItem[]> {
-    const syncColumnName: string = this.configService.get<string>(
-      'sharepoint.syncColumnName',
-    )!;
+  private async recursivelyFetchAndFilterFiles(driveId: string, itemId: string): Promise<DriveItem[]> {
+    const syncColumnName: string = this.configService.get<string>('sharepoint.syncColumnName')!;
     const syncableFiles: DriveItem[] = [];
 
-    const queryParams =
-      'select=id,name,webUrl,folder,file,listItem&expand=listItem';
+    const queryParams = 'select=id,name,webUrl,folder,file,listItem&expand=listItem';
     let url = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/children?${queryParams}`;
 
     while (url) {
@@ -76,10 +63,7 @@ export class SharepointApiService {
 
       for (const item of items) {
         if (item.folder) {
-          const filesInSubfolder = await this.recursivelyFetchAndFilterFiles(
-            driveId,
-            item.id,
-          );
+          const filesInSubfolder = await this.recursivelyFetchAndFilterFiles(driveId, item.id);
           syncableFiles.push(...filesInSubfolder);
         } else if (item.file) {
           const fields = item.listItem?.fields;
@@ -94,12 +78,8 @@ export class SharepointApiService {
   }
 
   private isFileSyncable(item: DriveItem): boolean {
-    const syncColumnName = this.configService.get<string>(
-      'sharepoint.syncColumnName',
-    )!;
-    const allowedMimeTypes = this.configService.get<string[]>(
-      'sharepoint.allowedMimeTypes',
-    )!;
+    const syncColumnName = this.configService.get<string>('sharepoint.syncColumnName')!;
+    const allowedMimeTypes = this.configService.get<string[]>('sharepoint.allowedMimeTypes')!;
 
     const fields = item.listItem?.fields;
     if (!fields) {
@@ -108,8 +88,7 @@ export class SharepointApiService {
 
     const hasSyncFlag = fields[syncColumnName] === true;
     const isApproved = fields._ModerationStatus === ModerationStatus.Approved;
-    const isAllowedMimeType =
-      item.file?.mimeType && allowedMimeTypes.includes(item.file.mimeType);
+    const isAllowedMimeType = item.file?.mimeType && allowedMimeTypes.includes(item.file.mimeType);
 
     return Boolean(hasSyncFlag && isApproved && isAllowedMimeType);
   }
@@ -121,12 +100,9 @@ export class SharepointApiService {
    * @returns Promise<Buffer> - The file content as a buffer
    */
   async downloadFileContent(driveId: string, itemId: string): Promise<Buffer> {
-    this.logger.log(
-      `Downloading file content for item ${itemId} from drive ${driveId}`,
-    );
+    this.logger.log(`Downloading file content for item ${itemId} from drive ${driveId}`);
 
-    const maxFileSizeBytes =
-      this.configService.get<number>('pipeline.maxFileSizeBytes') || 209715200; // 200MB
+    const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes') || 209715200; // 200MB
 
     return this.makeGraphRequest(async (token) => {
       const headers = { Authorization: `Bearer ${token}` };
@@ -159,11 +135,7 @@ export class SharepointApiService {
           // Check size limit during streaming
           if (totalSize > maxFileSizeBytes) {
             stream.destroy();
-            reject(
-              new Error(
-                `File size exceeds maximum limit of ${maxFileSizeBytes} bytes (${Math.round(maxFileSizeBytes / 1024 / 1024)}MB)`,
-              ),
-            );
+            reject(new Error(`File size exceeds maximum limit of ${maxFileSizeBytes} bytes (${Math.round(maxFileSizeBytes / 1024 / 1024)}MB)`));
             return;
           }
 
@@ -172,9 +144,7 @@ export class SharepointApiService {
 
         stream.on('end', () => {
           const buffer = Buffer.concat(chunks);
-          this.logger.log(
-            `File download completed. Size: ${totalSize} bytes (${Math.round(totalSize / 1024 / 1024)}MB)`,
-          );
+          this.logger.log(`File download completed. Size: ${totalSize} bytes (${Math.round(totalSize / 1024 / 1024)}MB)`);
           resolve(buffer);
         });
 
@@ -186,9 +156,7 @@ export class SharepointApiService {
     });
   }
 
-  private async makeGraphRequest<T>(
-    apiCall: (token: string) => Promise<T>,
-  ): Promise<T> {
+  private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {
     let token = await this.authService.getGraphApiToken();
 
     try {
@@ -200,10 +168,7 @@ export class SharepointApiService {
         return await apiCall(token);
       }
 
-      this.logger.error(
-        'Graph API request failed',
-        error.response?.data || error.message,
-      );
+      this.logger.error('Graph API request failed', error.response?.data || error.message);
       throw error;
     }
   }

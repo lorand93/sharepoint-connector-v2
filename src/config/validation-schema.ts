@@ -16,11 +16,9 @@ export const validationSchema = Joi.object({
   SHAREPOINT_SYNC_COLUMN_NAME: Joi.string().required(),
   ALLOWED_MIME_TYPES: Joi.string().required(),
 
-  // Pipeline Processing Configuration
   STEP_TIMEOUT_SECONDS: Joi.number().default(30),
   MAX_FILE_SIZE_BYTES: Joi.number().default(209715200), // 200MB
 
-  // Unique API Configuration
   UNIQUE_INGESTION_URL_GRAPHQL: Joi.string().uri().required(),
   UNIQUE_INGESTION_URL: Joi.string().uri().required(),
   UNIQUE_SCOPE_ID: Joi.string().required(),

@@ -156,12 +156,7 @@ export class MetricsService implements OnModuleInit {
     this.filesDiscovered.inc({ site: siteId || 'unknown' }, count);
   }
 
-  recordFileDiffResults(
-    newAndUpdated: number,
-    unchanged: number,
-    deleted: number,
-    moved: number,
-  ): void {
+  recordFileDiffResults(newAndUpdated: number, unchanged: number, deleted: number, moved: number): void {
     this.fileDiffResults.inc({ result_type: 'new_and_updated' }, newAndUpdated);
     this.fileDiffResults.inc({ result_type: 'unchanged' }, unchanged);
     this.fileDiffResults.inc({ result_type: 'deleted' }, deleted);
@@ -174,13 +169,6 @@ export class MetricsService implements OnModuleInit {
 
   recordScanError(siteId: string, errorType: string): void {
     this.scanErrors.inc({ site: siteId, error_type: errorType });
-  }
-
-  /**
-   * Record pipeline metrics
-   */
-  recordPipelineStarted(): void {
-    // Pipeline executions are recorded on completion
   }
 
   recordPipelineCompleted(success: boolean, durationSeconds: number): void {
@@ -215,4 +203,4 @@ export class MetricsService implements OnModuleInit {
   setHealthy(healthy: boolean): void {
     this.connectorUp.set(healthy ? 1 : 0);
   }
-} 
+}

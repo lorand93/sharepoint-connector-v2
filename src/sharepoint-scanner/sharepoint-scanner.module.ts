@@ -19,4 +19,5 @@ import { UniqueApiModule } from '../common/unique-api/unique-api.module';
   providers: [SharepointScannerService],
   exports: [SharepointScannerService],
 })
-export class SharepointScannerModule {}
+export class SharepointScannerModule {
+}

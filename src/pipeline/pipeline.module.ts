@@ -17,7 +17,7 @@ import { UniqueApiModule } from '../common/unique-api/unique-api.module';
     HttpModule,
     MicrosoftGraphModule,
     AuthModule,
-    UniqueApiModule,
+    UniqueApiModule
   ],
   providers: [
     PipelineService,
@@ -25,7 +25,7 @@ import { UniqueApiModule } from '../common/unique-api/unique-api.module';
     ContentFetchingStep,
     ContentRegistrationStep,
     StorageUploadStep,
-    IngestionFinalizationStep,
+    IngestionFinalizationStep
   ],
   exports: [PipelineService],
 })

@@ -1,25 +1,19 @@
 export interface ProcessingContext {
-  // Tracking
   correlationId: string;
   fileId: string;
   fileName: string;
   fileSize: number;
 
-  // SharePoint metadata
   siteUrl: string;
   libraryName: string;
   downloadUrl?: string;
 
-  // Processing state
   uploadUrl?: string;
   uniqueContentId?: string;
   contentBuffer?: Buffer;
 
-  // Timing and metrics
   startTime: Date;
-  stepTimings: Map<string, number>;
 
-  // Additional metadata
   metadata: Record<string, any>;
 }
 

@@ -26,10 +26,7 @@ export class SchedulerService {
       this.isScanRunning = true;
       await this.sharepointScanner.scanForWork();
     } catch (error) {
-      this.logger.error(
-        'An unexpected error occurred during the scheduled scan.',
-        error.stack,
-      );
+      this.logger.error('An unexpected error occurred during the scheduled scan.', error.stack);
     } finally {
       this.isScanRunning = false;
       this.logger.log('Scan finished. Ready for the next scheduled run.');
