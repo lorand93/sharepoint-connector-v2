@@ -30,15 +30,10 @@ export class StorageUploadStep implements IPipelineStep {
       }
 
       const fileSizeBytes = context.contentBuffer.length;
-      const fileSizeMB = Math.round(fileSizeBytes / 1024 / 1024);
+      const fileSizeMB = Math.round(fileSizeBytes / 1024);
 
-      this.logger.log(`[${context.correlationId}] Uploading ${fileSizeMB}MB to storage: ${context.uploadUrl}`);
-
-      await this.performRealUpload(context);
-
-      this.logger.log(`[${context.correlationId}] Storage upload completed successfully (${fileSizeMB}MB)`);
-
-      this.logger.log(`[${context.correlationId}] Storage upload completed for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Uploading ${fileSizeMB}KB to storage: ${context.uploadUrl}`);
+      await this.performUpload(context);
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);
@@ -57,7 +52,7 @@ export class StorageUploadStep implements IPipelineStep {
     }
   }
 
-  private async performRealUpload(context: ProcessingContext): Promise<void> {
+  private async performUpload(context: ProcessingContext): Promise<void> {
     const uploadUrl = context.uploadUrl!;
     const contentBuffer = context.contentBuffer!;
     const mimeType = context.metadata.mimeType || 'application/octet-stream';
@@ -69,8 +64,6 @@ export class StorageUploadStep implements IPipelineStep {
             'Content-Type': mimeType,
             'x-ms-blob-type': 'BlockBlob',
           },
-          maxBodyLength: Infinity,
-          maxContentLength: Infinity,
         }),
       );
 
@@ -78,9 +71,9 @@ export class StorageUploadStep implements IPipelineStep {
         throw new Error(`Upload failed with status ${response.status}: ${response.statusText}`);
       }
 
-      this.logger.log(`[${context.correlationId}] Real upload completed successfully`);
+      this.logger.debug(`[${context.correlationId}] Upload completed successfully`);
     } catch (error) {
-      this.logger.error(`[${context.correlationId}] Real upload failed: ${error.message}`);
+      this.logger.error(`[${context.correlationId}] Upload failed: ${error.message}`);
       throw error;
     }
   }

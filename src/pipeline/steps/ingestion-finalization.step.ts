@@ -5,6 +5,7 @@ import { UniqueApiService } from '../../common/unique-api/unique-api.service';
 import { IngestionFinalizationRequest } from '../../common/unique-api/types/unique-api.types';
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../../common/metrics/metrics.service';
+import { AuthService } from '../../common/auth/auth.service';
 
 @Injectable()
 export class IngestionFinalizationStep implements IPipelineStep {
@@ -12,6 +13,7 @@ export class IngestionFinalizationStep implements IPipelineStep {
   readonly stepName = PipelineStep.INGESTION_FINALIZATION;
 
   constructor(
+    private readonly authService: AuthService,
     private readonly uniqueApiService: UniqueApiService,
     private readonly configService: ConfigService,
     private readonly metricsService: MetricsService,
@@ -21,12 +23,9 @@ export class IngestionFinalizationStep implements IPipelineStep {
     const stepStartTime = Date.now();
 
     try {
-      this.logger.log(`[${context.correlationId}] Starting ingestion finalization for file: ${context.fileName}`);
+      this.logger.debug(`[${context.correlationId}] Starting ingestion finalization for file: ${context.fileName}`);
 
-      const uniqueToken = context.metadata.tokens?.uniqueApiToken;
-      if (!uniqueToken) {
-        throw new Error('Unique API token not found in context - token validation may have failed');
-      }
+      const uniqueToken = await this.authService.getUniqueApiToken()
 
       const registrationResponse = context.metadata.registrationResponse;
       if (!registrationResponse) {
@@ -42,14 +41,14 @@ export class IngestionFinalizationStep implements IPipelineStep {
         fileUrl: registrationResponse.readUrl,
       };
 
-      this.logger.log(`[${context.correlationId}] Finalizing ingestion for content ID: ${context.uniqueContentId}`);
+      this.logger.debug(`[${context.correlationId}] Finalizing ingestion for content ID: ${context.uniqueContentId}`);
 
       const finalizationResponse = await this.uniqueApiService.finalizeIngestion(finalizationRequest, uniqueToken);
 
       context.metadata.finalizationResponse = finalizationResponse;
       context.metadata.finalContentId = finalizationResponse.id;
 
-      this.logger.log(`[${context.correlationId}] Ingestion finalized successfully - Final content ID: ${finalizationResponse.id}`);
+      this.logger.debug(`[${context.correlationId}] Ingestion finalized successfully - Final content ID: ${finalizationResponse.id}`);
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);
