@@ -1,7 +1,7 @@
-import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import { AuthService } from '../auth/auth.service';
+import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 import { Drive, DriveItem, ModerationStatus } from './types/sharepoint.types';
 import { Readable } from 'stream';
@@ -15,31 +15,32 @@ export class SharepointApiService {
     private readonly httpService: HttpService,
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+  }
 
   public async findAllSyncableFilesForSite(siteId: string): Promise<DriveItem[]> {
-    this.logger.log(`Starting recursive file scan for site: ${siteId}`);
+    this.logger.debug(`Starting recursive file scan for site: ${siteId}`);
     const drives = await this.getDrivesForSite(siteId);
-    const allSyncableFiles: DriveItem[] = [];
+    let allSyncableFiles: DriveItem[] = [];
 
     for (const drive of drives) {
-      this.logger.log(`Scanning library (drive): ${drive.name} (${drive.id})`);
+      this.logger.debug(`Scanning library (drive): ${drive.name} (${drive.id})`);
       const filesInDrive = await this.recursivelyFetchAndFilterFiles(drive.id, 'root');
       allSyncableFiles.push(...filesInDrive);
     }
 
-    this.logger.log(`Completed scan for site ${siteId}. Found ${allSyncableFiles.length} syncable files.`);
+    this.logger.debug(`Completed scan for site ${siteId}. Found ${allSyncableFiles.length} syncable files.`);
     return allSyncableFiles;
   }
 
   private async getDrivesForSite(siteId: string): Promise<Drive[]> {
+    let allDrives: Drive[] = [];
     let url = `${this.GRAPH_API_BASE_URL}/sites/${siteId}/drives`;
-    const allDrives: Drive[] = [];
 
     while (url) {
-      const response = await this.makeGraphRequest((token) => {
-        const headers = { Authorization: `Bearer ${token}` };
-        return firstValueFrom(this.httpService.get(url, { headers }));
+      const response = await this.makeGraphRequest<{data: {value: Drive[]}}>((token) => {
+        const headers = {Authorization: `Bearer ${token}`};
+        return firstValueFrom(this.httpService.get(url, {headers}));
       });
       allDrives.push(...(response.data.value || []));
       url = response.data['@odata.nextLink'];
@@ -48,25 +49,30 @@ export class SharepointApiService {
   }
 
   private async recursivelyFetchAndFilterFiles(driveId: string, itemId: string): Promise<DriveItem[]> {
-    const syncColumnName: string = this.configService.get<string>('sharepoint.syncColumnName')!;
-    const syncableFiles: DriveItem[] = [];
-
-    const queryParams = 'select=id,name,webUrl,folder,file,listItem&expand=listItem';
+    let syncableFiles: DriveItem[] = [];
+    const queryParams = 'select=id,name,webUrl,size,lastModifiedDateTime,folder,file,listItem,parentReference&expand=listItem(expand=fields,parentReference)';
     let url = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/children?${queryParams}`;
 
     while (url) {
-      const response = await this.makeGraphRequest((token) => {
-        const headers = { Authorization: `Bearer ${token}` };
-        return firstValueFrom(this.httpService.get(url, { headers }));
+      const response = await this.makeGraphRequest<{data: {value: DriveItem[]}}>((token) => {
+        const headers = {Authorization: `Bearer ${token}`};
+        return firstValueFrom(this.httpService.get(url, {headers}));
       });
-      const items = response.data.value || [];
+      const items: DriveItem[] = response.data.value || [];
 
       for (const item of items) {
+        if (item.parentReference) {
+          item.parentReference.driveId = driveId;
+        }
+
+        if (!item.parentReference && item.listItem?.parentReference) {
+          item.parentReference = item.listItem.parentReference;
+        }
+
         if (item.folder) {
           const filesInSubfolder = await this.recursivelyFetchAndFilterFiles(driveId, item.id);
           syncableFiles.push(...filesInSubfolder);
         } else if (item.file) {
-          const fields = item.listItem?.fields;
           if (this.isFileSyncable(item)) {
             syncableFiles.push(item);
           }
@@ -100,74 +106,61 @@ export class SharepointApiService {
    * @returns Promise<Buffer> - The file content as a buffer
    */
   async downloadFileContent(driveId: string, itemId: string): Promise<Buffer> {
-    this.logger.log(`Downloading file content for item ${itemId} from drive ${driveId}`);
+    this.logger.debug(`Downloading file content for item ${itemId} from drive ${driveId}`);
+    const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes', 209715200); // 200MB default
 
-    const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes') || 209715200; // 200MB
-
-    return this.makeGraphRequest(async (token) => {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Get download URL from Microsoft Graph
+    const responseStream = await this.makeGraphRequest(async (token) => {
+      const headers = {Authorization: `Bearer ${token}`};
       const downloadUrl = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/content`;
 
-      this.logger.log(`Streaming file content from: ${downloadUrl}`);
-
-      // Stream the file content with responseType: 'stream'
       const response = await firstValueFrom(
-        this.httpService.get(downloadUrl, {
+        this.httpService.get<Readable>(downloadUrl, {
           headers,
           responseType: 'stream',
           maxBodyLength: maxFileSizeBytes,
           maxContentLength: maxFileSizeBytes,
         }),
       );
+      return response.data;
+    });
 
-      // Convert stream to buffer with size validation
+    return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
       let totalSize = 0;
-
-      return new Promise<Buffer>((resolve, reject) => {
-        const stream = response.data as Readable;
-
-        stream.on('data', (chunk: Buffer) => {
-          totalSize += chunk.length;
-
-          // Check size limit during streaming
-          if (totalSize > maxFileSizeBytes) {
-            stream.destroy();
-            reject(new Error(`File size exceeds maximum limit of ${maxFileSizeBytes} bytes (${Math.round(maxFileSizeBytes / 1024 / 1024)}MB)`));
-            return;
-          }
-
-          chunks.push(chunk);
-        });
-
-        stream.on('end', () => {
-          const buffer = Buffer.concat(chunks);
-          this.logger.log(`File download completed. Size: ${totalSize} bytes (${Math.round(totalSize / 1024 / 1024)}MB)`);
-          resolve(buffer);
-        });
-
-        stream.on('error', (error) => {
-          this.logger.error(`File download failed: ${error.message}`);
-          reject(error);
-        });
+      responseStream.on('data', (chunk: Buffer) => {
+        totalSize += chunk.length;
+        if (totalSize > maxFileSizeBytes) {
+          responseStream.destroy();
+          reject(new Error(`File size exceeds maximum limit of ${maxFileSizeBytes} bytes.`));
+        }
+        chunks.push(chunk);
+      });
+      responseStream.on('end', () => {
+        this.logger.log(`File download completed. Size: ${totalSize} bytes.`);
+        resolve(Buffer.concat(chunks));
+      });
+      responseStream.on('error', (error) => {
+        this.logger.error(`File download stream failed: ${error.message}`);
+        reject(error);
       });
     });
   }
 
   private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {
     let token = await this.authService.getGraphApiToken();
-
     try {
       return await apiCall(token);
     } catch (error) {
       if (error.response?.status === 401) {
-        this.logger.warn('Graph API token expired, refreshing and retrying...');
-        token = await this.authService.getGraphApiToken();
-        return await apiCall(token);
+        this.logger.warn('Graph API token expired or invalid, refreshing and retrying request once...');
+        const newToken = await this.authService.getGraphApiToken();
+        try {
+          return await apiCall(newToken);
+        } catch (retryError) {
+          this.logger.error('Graph API request failed on retry', retryError.response?.data || retryError.message);
+          throw retryError;
+        }
       }
-
       this.logger.error('Graph API request failed', error.response?.data || error.message);
       throw error;
     }

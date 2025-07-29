@@ -25,21 +25,24 @@ export interface DriveItem {
     mimeType: string;
   };
   listItem: ListItem;
-  parentReference?: {
-    driveId: string;
-    siteId: string;
-    path?: string;
-  };
+  parentReference: ParentReference
 }
 
 export interface ListItem {
   lastModifiedDateTime: string;
   createdDateTime: string;
   fields?: ListItemFields;
+  parentReference?: ParentReference
 }
 
 export interface ListItemFields {
   id: string;
   OData__ModerationStatus?: ModerationStatus;
   [key: string]: any;
+}
+
+export interface ParentReference {
+    driveId: string;
+    siteId: string;
+    path?: string;
 }

@@ -4,7 +4,7 @@ import { AuthService } from '../common/auth/auth.service';
 import { SharepointApiService } from '../common/microsoft-graph/sharepoint-api.service';
 import { QueueService } from '../queue/queue.service';
 import { UniqueApiService } from '../common/unique-api/unique-api.service';
-import { FileDiffFileItem } from '../common/unique-api/types/unique-api.types';
+import { FileDiffFileItem, FileDiffResponse } from '../common/unique-api/types/unique-api.types';
 import { DriveItem } from '../common/microsoft-graph/types/sharepoint.types';
 import { MetricsService } from '../common/metrics/metrics.service';
 
@@ -83,35 +83,9 @@ export class SharepointScannerService {
         diffResult.movedFiles.length,
       );
 
-      const newFileKeys = new Set(diffResult.newAndUpdatedFiles);
-      const filesToProcess = allFiles.filter((file) =>
-        newFileKeys.has(`sharepoint_file_${file.id}`),
-      );
+      const results = await this.loadJobsInQueue(diffResult, allFiles, totalFilesFound);
 
-      const jobPromises = filesToProcess.map(file =>
-        this.queueService.addFileProcessingJob(file),
-      );
-
-      const results = await Promise.allSettled(jobPromises);
-
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const file = filesToProcess[index];
-          this.logger.error(
-            `Failed to queue file ${file.name} (${file.id}):`,
-            result.reason,
-          );
-        }
-      });
-
-      this.logger.log(`Scan complete. ${addFileProcessingJobPromises.length + 1} 
-        files added to processing queue out of ${totalFilesFound} total files scanned.`);
-
-      this.metricsService.recordFilesQueued(addFileProcessingJobPromises.length + 1);
-
-      if (diffResult.deletedFiles.length > 0) {
-        this.logger.debug(`Note: ${diffResult.deletedFiles} files were deleted and will be handled by Unique backend.`);
-      }
+      this.metricsService.recordFilesQueued(results.length + 1);
 
       const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
       this.metricsService.recordScanCompleted(scanDurationSeconds);
@@ -119,6 +93,33 @@ export class SharepointScannerService {
       this.logger.error('Failed to complete SharePoint scan:', error.stack);
       this.metricsService.recordScanError('global', 'scan_failed');
     }
+  }
+
+  private async loadJobsInQueue(diffResult: FileDiffResponse, allFiles: DriveItem[], totalFilesFound: number) {
+    const newFileKeys = new Set(diffResult.newAndUpdatedFiles);
+    const filesToProcess = allFiles.filter((file) =>
+      newFileKeys.has(`sharepoint_file_${file.id}`),
+    );
+
+    this.logger.log(`Scan complete. ${filesToProcess.length + 1} files will be added to processing queue 
+      out of ${totalFilesFound} total files scanned.`);
+
+    const jobPromises = filesToProcess.map(file =>
+      this.queueService.addFileProcessingJob(file),
+    );
+
+    const results = await Promise.allSettled(jobPromises);
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const file = filesToProcess[index];
+        this.logger.error(
+          `Failed to queue file ${file.name} (${file.id}):`,
+          result.reason,
+        );
+      }
+    });
+    return results;
   }
 }
 

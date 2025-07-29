@@ -1,0 +1,1128 @@
+"You are a senior software engineer and my pair programmer for this session. We are starting a new project to build a SharePoint Connector v2 using NestJS and TypeScript.
+
+The Project Goal:
+Our goal is to build a production-ready service that replicates the functionality of an older v1 connector. It will run as a scheduled job, scan SharePoint sites for files flagged for synchronization, and process them for ingestion into a knowledge base.
+
+Chosen Architecture:
+After evaluating several options, we have decided to use a Redis + BullMQ architecture. This means we will use Redis for both a distributed lock (to coordinate scheduled jobs) and as a persistent queue (managed by BullMQ) for processing files.
+
+Our Development Plan:
+We have broken down the project into a clear, 4-step iterative plan. We are about to begin Iteration 1.
+
+Here is the plan for reference:
+
+Iteration 1: The "Scanner" - Proving SharePoint Connectivity: Our immediate goal. We will build a simple application that proves we can connect to SharePoint, authenticate with Microsoft Graph, and retrieve the correct list of files to be synced. The deliverable for this iteration is a script that logs the file IDs to the console.
+
+Iteration 2: Introducing the Queue: We will integrate Redis and BullMQ to decouple the scanning and processing.
+
+Iteration 3: Implementing the Pipeline & Scalability: We will build the full processing logic and the distributed lock for multi-pod scaling.
+
+Iteration 4: Production Hardening: We will add logging, metrics, documentation, and deployment artifacts.
+
+Our First Task:
+Let's start with Task 1.1 from our plan: Initialize a new monorepo-style NestJS project.
+
+Please help me set up the initial project structure using the NestJS CLI. Let's discuss the best practices for organizing our modules as we go, keeping our 4-iteration plan in mind."
+
+Here is the document I shared with unique representatives:
+Proposal: SharePoint Connector v2 - Phase 1 Implementation
+Date: July 23, 2025
+1. Objective
+The primary goal of Phase 1 is to deliver a production-ready SharePoint Connector v2 as a NestJS/NodeJS service. This service will achieve full feature parity with the existing v1 Power Automate solution, replacing it with a modern, maintainable, and scalable architecture.
+2. Core Architecture
+All proposed implementations share the same core architectural principles:
+Technology: A self-contained NestJS/NodeJS application, containerized for deployment in Kubernetes.
+Change Detection: The service will replicate the v1 polling mechanism. A scheduled job will run every 15 minutes to scan configured SharePoint sites and identify files flagged for synchronization via a custom column.
+Processing Pipeline: It's important to note that the internal steps for processing a single file fetching content, diffing, and ingesting will be almost identical regardless of the high-level architecture chosen. The main decision is how I manage the overall workflow.
+In-Pod Concurrency: To ensure efficiency and maximum utilisation of the pod’s resources, all options are designed to process multiple files at the same time within each running pod. This is managed by a configurable concurrency limit (e.g., processing 4 files in parallel) to maximize throughput without overwhelming the service.
+Observability: The service will include structured JSON logging and expose Prometheus-compatible metrics for production monitoring.
+The key decision point for this phase is how I manage the scalability and resilience of the processing pipeline. I have three excellent, production-ready options.
+3. Implementation Options
+Below are three distinct architectural patterns for implementing the connector. Each offers a different balance of infrastructure complexity, resilience, and scalability.
+
+Option 2: Redis + BullMQ
+For a simpler infrastructure stack, I can adopt a modern, Node.js-centric approach using BullMQ, which leverages a single Redis instance to handle both the persistent job queue and the distributed lock.
+How it Works: This model is functionally identical to Option 1 and just as scalable. It consolidates both the queue and the lock into a single Redis instance, managed by the BullMQ library. This architecture also supports auto-scaling, allowing Kubernetes to adjust the number of worker pods based on the queue size in Redis.
+Concurrency: The BullMQ Worker in each pod has a built-in concurrency setting, allowing it to process multiple jobs from the Redis queue in parallel.
+Pros:
+Highly Scalable: Just like the RabbitMQ option, the processing workload can be scaled horizontally by adding more pods.
+Simplified Infrastructure: Reduces complexity by requiring only one external dependency (Redis).
+Excellent Developer Experience: BullMQ is rich with features for Node.js.
+Cons:
+Node.js Centric: Primarily designed for a Node.js ecosystem.
+Reliability is tied to the Redis instance's configuration.
+Example High Level Implementation: https://github.com/lorand93/connector-shell/blob/main/bull-queue-example.ts
+
+4. Recommendation & Next Steps
+All three options are viable for Phase 1. The choice depends on our strategic priorities regarding scalability, infrastructure complexity, and resilience.
+Once a decision is made, I can finalize the project timeline and begin development.
+5. File Processing and Ingestion Flow
+The connector operates in a two-step process to efficiently identify and ingest content from SharePoint. The following steps are in direct sequence with the provided flow diagram.
+Step 1: Scan and Analysis
+This initial step is responsible for identifying all content changes across the configured SharePoint sites.
+Initiation: The process is triggered by a scheduler every 15 minutes.
+Acquire Unique Token: The service first authenticates with the Unique Token Service to acquire an access token for communicating with the backend.
+Site & Library Scan: The connector then authenticates with Microsoft Graph (an implicit step) to access SharePoint. It retrieves the list of sites to be synced and iterates through each site and its document libraries.
+File Identification: For each library, it queries for files where the designated sync column is flagged for ingestion.
+Change Analysis (Diff): Using the token acquired in step 2, the service sends the complete list of flagged file identifiers to the Unique Backend. The backend analyzes this list and returns which files are new, updated, or have been deleted.
+Step 2: Content Ingestion
+This step acts only on the new and updated files identified in Step 1. Each file is processed through the following actions:
+Validate Unique Token: The service first validates the access token acquired in Step 1. If the token is still valid, it is reused for all subsequent operations in this step. If it has expired, a new token is acquired from the Unique Token Service.
+Fetch Content: The connector then retrieves the full file content from SharePoint.
+Register Content: Using its valid Unique token, the service notifies the Unique Backend that it is about to ingest a new file. The backend registers the content and returns a secure, one-time URL for uploading the file directly to storage.
+Save to Storage: The connector uses the provided URL to upload the file content to its secure storage location.
+Finalize Ingestion: Once the upload is complete, the connector sends a final notification to the Unique Backend, marking the content as ready for final indexing into the knowledge base.
+5. Questions and Notes
+Notes:
+One deployed instance of this connector will run only for one client
+I have a known list of sites I need to sync. For the prototype I’ll store them in a JSON file. In production it might be different: env variables, CMS.
+Sharepoint structure: each site has libraries, each library has files.
+Each file has a FinanceGPTKnowledge (sync column = 1)  flag that is true when the file should be synced.
+Once I have the files we’re filtering based on the OData__ModerationStatus field equals 0 = Approved to continue with only the files that are published/approved and not waiting for approval.
+Log events and identifiers, not the data itself.
+I assume the connector must operate within the rate limits imposed by the Microsoft Graph API. The implementation will need to include logic (e.g., exponential backoff, rate limiting) to handle throttling responses gracefully to avoid being blocked. - required initially?
+I assume that the service principal (Azure AD App Registration) used by the connector will be granted the necessary Sites.Read.All and Files.Read.All permissions on the client's SharePoint environment to perform its duties.
+The entire process is dependent on the availability and performance of the Unique Backend services, specifically the file-diff endpoint and the ingestion APIs. I assume these services will be available and can handle the load from the connector - Any limitations and performance issues should be discussed.
+I assume that the Unique Backend ingestion process is idempotent. This means if the connector sends the same file for ingestion more than once due to a retry, the backend will handle it correctly without creating duplicate content.
+I assume that sending an "empty array" to the file-diff endpoint is the correct and supported method for signaling the mass deletion of a site's content from the knowledge base.
+
+
+Questions:
+What payload does the file-diff endpoint expect, how does it identify which files are changed? (based on metadata e.g. last changed date? Or base on content)
+We will provide reference code from Atlassian Connector
+See below
+How do I authenticate with the Unique API?
+We will provide docs
+We will provide QA credentials
+See below
+CI/CD What does the path to production look like ?
+Irrelevant, but docker build, push, then helm charts, argocd. Context of Q unclear a bit.
+https://unique-ch.atlassian.net/wiki/spaces/PUB/pages/446234728/Release+Process
+How to trigger “ingestion”?
+Login for QA
+Where to upload? S3 or Backend?
+1.create content → url
+2. Upload to url
+2.  Make a put request → will ingest content
+See below
+Beyond basic health checks, what are the critical business metrics I need to alert on? I can propose a few important metrics for this.
+Please propose, keep cardinality low
+Who will receive these alerts, and what is the expected response process?
+Alertmanagers from Prometheus, most point to Slack
+What solution do you use for querying logs ? We should be able to trace the processing for a file across the steps.
+Stdout JSON → promtail → loki → grafana
+ What is the maximum number of pods we will allow it to scale up to or do we care about the speed of processing?
+Unlimited if a reason is given, but lets say 8+  I will ask very awkward questions
+Also depends on vertical size
+Main predicted bottleneck: sharepoint api, file upload speed, ingestion with embedding model
+Is the bottleneck the unique processing API or the speed of the connector?
+None of these two, the real bottleneck is the embedding of the documents into vectors (“the ingestion”) or uploading
+
+Unique: https://next.qa.unique.app/
+Zitadel IDP: https://id.qa.unique.app/U
+Credentials: <@1397570302740791498> https://share.1password.com/s#JXc3DvlRZrmIy_PgBk9j0CPre_Ejspb0iobRncBZKbo
+
+export async function getToken({ oAuthTokenUrl, clientId, clientSecret, projectId }: TokenRequestDto): Promise<TokenDto> {
+ // remove all non-numeric characters from the project id
+ projectId = projectId.replace(/\D/g, '');
+
+
+ const params = new URLSearchParams({
+   scope: `openid profile email urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:projects:roles urn:zitadel:iam:org:project:id:${projectId}:aud`,
+   grant_type: 'client_credentials',
+ });
+
+
+ if (process.env.DEBUG_MODE == 'true') {
+   logger.info(`Requesting token with params: ${params.getAll('scope')}`);
+ }
+
+
+ const result = await axios.post(oAuthTokenUrl, params, {
+   headers: {
+     Content: 'application/json',
+     'Content-Type': 'application/x-www-form-urlencoded',
+     // eslint-disable-next-line no-undef
+     Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+   },
+ });
+
+
+ if (![200, 201, 202, 203, 204].includes(result.status)) {
+   const errorMessage = await result.data;
+   logger.error(`Failed to get a token: ${result.status} ${result.statusText} ${JSON.stringify(errorMessage)}`);
+   throw new Error(`Failed to get a token: ${result.status} ${result.statusText} ${JSON.stringify(errorMessage)}`);
+ }
+
+
+ const response = result.data as {
+   access_token: string;
+   expires_in: number;
+ };
+ const expiresAt = new Date(Date.now() + response.expires_in * 1000);
+ logger.info(`Successfully fetched a new token that expries in ${response.expires_in} seconds at ${expiresAt}.`);
+
+
+ return {
+   newAccessToken: response.access_token,
+   expiresAtDate: expiresAt,
+ };
+}
+
+
+
+
+
+const ingestionApiUrl = process.env.UNIQUE_INGESTION_URL; // todo: move to the graphql ingestion api
+const graphqlIngestionApiUrl = process.env.UNIQUE_INGESTION_URL_GRAPHQL;
+const localConfluenceUrl = process.env.CONFLUENCE_URL;
+const ingestionLimiter = new RateLimiter({
+ tokensPerInterval: 1000,
+ interval: 'minute',
+});
+const fileDiffUrl = ingestionApiUrl + '/file-diff';
+const confluenceInstanceType = (process.env.CONFLUENCE_INSTANCE_TYPE ?? 'ONPREM').toUpperCase();
+
+
+let ingestionSourceKind: IngestionSourceKind;
+
+
+if (confluenceInstanceType == 'ONPREM') {
+ ingestionSourceKind = IngestionSourceKind.ATLASSIAN_CONFLUENCE_ONPREM;
+} else if (confluenceInstanceType == 'CLOUD') {
+ ingestionSourceKind = IngestionSourceKind.ATLASSIAN_CONFLUENCE_CLOUD;
+} else {
+ logger.error(`Invalid CONFLUENCE_INSTANCE_TYPE: ${confluenceInstanceType}`);
+ throw new Error(`Invalid CONFLUENCE_INSTANCE_TYPE: ${confluenceInstanceType}`);
+}
+
+
+export async function ingestPage(pageDto: PageDto, token: TokenDto): Promise<void> {
+ const validToken = await refreshToken(token);
+
+
+ let body: IngestionDto;
+
+
+ if (!pageDto.body) {
+   logger.info(`Skipping. Page body is empty for page with title: ${pageDto.title} (ID: ${pageDto.id})`);
+   return;
+ }
+
+
+ if (!process.env.UNIQUE_SCOPE_ID) {
+   body = {
+     text: pageDto.body,
+     key: pageDto.spaceId + '_' + pageDto.spaceKey + '/' + pageDto.id,
+     title: pageDto.title,
+     url: pageDto.url,
+     source: {
+       kind: ingestionSourceKind,
+       name: localConfluenceUrl,
+       ownerType: 'COMPANY',
+     },
+     mimeType: 'text/html',
+     ownerType: 'SCOPE',
+     scopeId: 'PATH',
+     baseUrl: localConfluenceUrl + '/display',
+   };
+ } else {
+   body = {
+     text: pageDto.body,
+     key: localConfluenceUrl + '/' + pageDto.id,
+     title: pageDto.title,
+     url: pageDto.url,
+     source: {
+       kind: ingestionSourceKind,
+       name: localConfluenceUrl,
+       ownerType: 'COMPANY',
+     },
+     mimeType: 'text/html',
+     ownerType: 'SCOPE',
+     scopeId: process.env.UNIQUE_SCOPE_ID,
+   };
+ }
+
+
+ if (process.env.TEST_MODE !== 'true') {
+   const res = await makeRateLimitedIngestionRequest<AxiosResponse, IngestionDto>(ingestionApiUrl, body, validToken, false);
+
+
+   if (!res) {
+     return;
+   } else {
+     logger.info(`Ingested page with title: ${pageDto.title}`);
+   }
+
+
+   if (pageDto.files?.length > 0) {
+     logger.info(`Ingesting ${pageDto.files.length} external files.`);
+     for (const file of pageDto.files) {
+       logger.info(`Ingesting external file ${file}`);
+
+
+       const download = await downloadFile(file);
+       if (!download) {
+         logger.error(`Failed to download file: ${file}`);
+         continue;
+       }
+       const filename = file.split('/').pop();
+
+
+       if (typeof download !== 'string') {
+         continue;
+       }
+
+
+       // TODO: ingestion response should be used to covoer PATH and scopeId cases in these variables
+       const gqlQuery: PrepIngestionGrapQL = {
+         query: `
+       mutation ContentUpsert(
+         $input: ContentCreateInput!
+         $scopeId: String
+         $sourceOwnerType: String
+         $sourceName: String
+         $sourceKind: String
+       ) {
+         contentUpsert(
+           input: $input
+           scopeId: $scopeId
+           sourceOwnerType: $sourceOwnerType
+           sourceName: $sourceName
+           sourceKind: $sourceKind
+         ) {
+           id
+           key
+           byteSize
+           mimeType
+           ownerType
+           ownerId
+           writeUrl
+           readUrl
+           createdAt
+           internallyStoredAt
+           source {
+             kind
+           }
+         }
+       }`,
+         variables: {
+           input: {
+             title: filename,
+             key: pageDto.spaceId + '_' + pageDto.spaceKey + '/' + pageDto.id + '_' + filename,
+             mimeType: 'application/pdf',
+             ownerType: 'SCOPE',
+           },
+           scopeId: process.env.UNIQUE_SCOPE_ID,
+           sourceOwnerType: 'COMPANY',
+           sourceKind: 'UNIQUE_BLOB_STORAGE',
+           sourceName: localConfluenceUrl,
+         },
+       };
+
+
+       const prepUpload: any = await makeRateLimitedIngestionRequest<AxiosResponse, PrepIngestionGrapQL>(graphqlIngestionApiUrl, gqlQuery, validToken);
+
+
+       if (!prepUpload.data.contentUpsert.writeUrl) {
+         logger.error(`No writeUrl found for file ${file}`);
+         continue;
+       }
+
+
+       const readFile = await fs.promises.readFile(download);
+
+
+       await axios.put(prepUpload.data.contentUpsert.writeUrl, readFile, {
+         headers: {
+           'Content-Type': 'application/pdf',
+           'x-ms-blob-type': 'BlockBlob',
+         },
+       });
+
+
+       const gqlQueryFinish: FinishPrepIngestionGrapQL = {
+         query: `
+       mutation ContentUpsert(
+         $input: ContentCreateInput!
+         $scopeId: String
+         $fileUrl: String
+       ) {
+         contentUpsert(
+           input: $input
+           scopeId: $scopeId
+           fileUrl: $fileUrl
+         ) {
+           id
+         }
+       }`,
+         variables: {
+           input: {
+             key: pageDto.spaceId + '_' + pageDto.spaceKey + '/' + pageDto.id + '_' + filename,
+             mimeType: 'application/pdf',
+             ownerType: 'SCOPE',
+             url: file,
+           },
+           scopeId: process.env.UNIQUE_SCOPE_ID,
+           fileUrl: prepUpload.data.contentUpsert.readUrl,
+         },
+       };
+
+
+       await makeRateLimitedIngestionRequest<AxiosResponse, FinishPrepIngestionGrapQL>(graphqlIngestionApiUrl, gqlQueryFinish, validToken);
+
+
+       await fsPromises.unlink(download);
+
+
+       logger.info(`Deleted file after ingestion: ${download}`);
+     }
+   }
+ } else {
+   logger.info(`Ingestion API is not called in test mode. Would have ingested page with title: ${pageDto.title} (ID: ${pageDto.id}) .`);
+ }
+}
+
+
+async function refreshToken(token: TokenDto): Promise<TokenDto> {
+ const { clientId, clientSecret, oAuthTokenUrl, projectId } = {
+   oAuthTokenUrl: process.env.ZITADEL_OAUTH_TOKEN_URL,
+   clientId: process.env.ZITADEL_CLIENT_ID,
+   clientSecret: process.env.ZITADEL_CLIENT_SECRET,
+   projectId: process.env.ZITADEL_PROJECT_ID,
+ };
+
+
+ const accessToken = token.newAccessToken;
+ if (!clientId || !clientSecret || !oAuthTokenUrl || !projectId) {
+   logger.error(`The OAuth configuration appears invalid`);
+   throw new Error(`The OAuth configuration appears invalid]`);
+ }
+ if (!accessToken || token.expiresAtDate < new Date()) {
+   logger.warn(`Token is not present or has expired at ${token.expiresAtDate} and must be refreshed.`);
+   return await getToken({
+     oAuthTokenUrl: oAuthTokenUrl,
+     clientId: clientId,
+     clientSecret: clientSecret,
+     projectId: projectId,
+   });
+ } else {
+   return token;
+ }
+}
+
+
+export async function getFilesDiffIds(fileList: FileDiffPageDto[], token: TokenDto): Promise<FileDiffDto> {
+ const validToken: TokenDto = await refreshToken(token);
+
+
+ let body: FileDiffRequestDto;
+ let responses: FileDiffDto[] = [];
+
+
+ if (!process.env.UNIQUE_SCOPE_ID) {
+   const groupedBySpaceId: Record<string, FileDiffPageDto[]> = {};
+   fileList.forEach((file) => {
+     if (file.spaceId) {
+       if (!groupedBySpaceId[file.spaceId]) {
+         groupedBySpaceId[file.spaceId] = [];
+       }
+       groupedBySpaceId[file.spaceId].push(file);
+     }
+   });
+
+
+   for (const [spaceId, space] of Object.entries(groupedBySpaceId)) {
+     body = {
+       basePath: localConfluenceUrl + '/display',
+       partialKey: spaceId + '_' + space[0].spaceKey,
+       sourceKind: ingestionSourceKind,
+       sourceName: localConfluenceUrl,
+       fileList: groupedBySpaceId[spaceId],
+       scope: 'PATH',
+     };
+
+
+     const spaceResponse = await makeRateLimitedIngestionRequest<FileDiffDto, FileDiffRequestDto>(fileDiffUrl, body, validToken);
+
+
+     responses.push(spaceResponse);
+   }
+ } else {
+   body = {
+     basePath: localConfluenceUrl,
+     partialKey: localConfluenceUrl,
+     sourceKind: ingestionSourceKind,
+     sourceName: localConfluenceUrl,
+     fileList: fileList,
+     scope: process.env.UNIQUE_SCOPE_ID,
+   };
+
+
+   responses.push(await makeRateLimitedIngestionRequest<FileDiffDto, FileDiffRequestDto>(fileDiffUrl, body, validToken));
+ }
+
+
+ // merging all file id's from different spaces
+ const mergedResponse = responses.reduce(
+   (acc, obj) => {
+     Object.keys(obj).forEach((key) => {
+       acc[key] = acc[key] ? [...new Set([...acc[key], ...obj[key]])] : obj[key];
+     });
+     return acc;
+   },
+   {
+     newAndUpdatedFiles: [],
+     deletedFiles: [],
+     unchangedFiles: [],
+     movedFiles: [],
+   }
+ );
+
+
+ return mergedResponse;
+}
+
+
+async function makeRateLimitedIngestionRequest<T, B>(url: string, body: B, validToken: TokenDto, throwOnError = true): Promise<T> {
+ await ingestionLimiter.removeTokens(1);
+
+
+ try {
+   const response: AxiosResponse<T> = await axios.post(url, body, {
+     headers: {
+       Content: 'application/json',
+       Authorization: `Bearer ${validToken.newAccessToken}`,
+     },
+   });
+   return response.data;
+ } catch (error) {
+   logger.error(`Failed to make request to ${url}, error: ${error}`);
+
+
+   if (throwOnError) {
+     throw error;
+   }
+ }
+}
+
+
+async function downloadFile(url: string): Promise<string> {
+ const filename = url.split('/').pop();
+ const downloadPath = 'downloads/';
+ const filePath = downloadPath + filename;
+
+
+ if (!filename) {
+   logger.error(`Invalid file name: ${filename}`);
+   return null;
+ }
+
+
+ try {
+   const response = await axios.get(url, {
+     responseType: 'stream',
+   });
+
+
+   if (!(await fsPromises.stat(downloadPath))) {
+     await fsPromises.mkdir(downloadPath, { recursive: true });
+   }
+
+
+   if (await fsPromises.stat(filePath)) {
+     await fsPromises.unlink(filePath);
+     logger.info(`Deleted existing file: ${filePath}`);
+   }
+
+
+   const writeStream = fs.createWriteStream(filePath);
+
+
+   response.data.pipe(writeStream);
+
+
+   return new Promise((resolve, reject) => {
+     writeStream.on('finish', resolve);
+     writeStream.on('error', reject);
+   }).then(() => {
+     logger.info('file downloaded successfully');
+     return filePath;
+   });
+ } catch (error) {
+   logger.error('Error downloading file:', error.message);
+ }
+}
+
+
+export async function resetScope(scopeId: string, basePath: string, partialKey: string): Promise<void> {
+ const token = await getToken({
+   oAuthTokenUrl: process.env.ZITADEL_OAUTH_TOKEN_URL,
+   clientId: process.env.ZITADEL_CLIENT_ID,
+   clientSecret: process.env.ZITADEL_CLIENT_SECRET,
+   projectId: process.env.ZITADEL_PROJECT_ID,
+ });
+
+
+ const body = {
+   basePath: basePath ?? '',
+   partialKey: partialKey ?? '',
+   sourceKind: ingestionSourceKind,
+   sourceName: localConfluenceUrl,
+   fileList: [],
+   scope: scopeId,
+ };
+
+
+ logger.info(`Resetting scope with id: ${scopeId}`);
+
+
+ try {
+   const response: AxiosResponse = await axios.post(fileDiffUrl, body, {
+     headers: {
+       Content: 'application/json',
+       Authorization: `Bearer ${token.newAccessToken}`,
+     },
+   });
+
+
+   logger.info(`Reset scope with id: ${scopeId}. Deleted ${response.data.deletedFiles.length} files.`);
+   return response.data;
+ } catch (error) {
+   logger.error(`Failed to make request to ${fileDiffUrl}`, error);
+   throw error;
+ }
+}
+
+
+export async function deleteContent(contentId: string): Promise<void> {
+ const token = await getToken({
+   oAuthTokenUrl: process.env.ZITADEL_OAUTH_TOKEN_URL,
+   clientId: process.env.ZITADEL_CLIENT_ID,
+   clientSecret: process.env.ZITADEL_CLIENT_SECRET,
+   projectId: process.env.ZITADEL_PROJECT_ID,
+ });
+
+
+ logger.info(`Deleting content with id: ${contentId}`);
+
+
+ const deleteUrl = ingestionApiUrl + '/' + encodeURIComponent(contentId);
+
+
+ try {
+   const response: AxiosResponse = await axios.delete(deleteUrl, {
+     headers: {
+       Content: 'application/json',
+       Authorization: `Bearer ${token.newAccessToken}`,
+     },
+   });
+
+
+   logger.info(`Deleted content with id: ${contentId}.`);
+   return response.data;
+ } catch (error) {
+   logger.error(`Failed to make request to ${deleteUrl}`, error);
+   throw error;
+ }
+}
+
+
+
+ UNIQUE_INGESTION_URL_GRAPHQL: https://gateway.qa.unique.app/ingestion-gen2/graphql
+ UNIQUE_INGESTION_URL: https://gateway.qa.unique.app/ingestion-gen2/v1/content
+ UNIQUE_SCOPE_ID: take your own scopescope_d4m5cpcu81bszot56ncvo5jx
+ ZITADEL_OAUTH_TOKEN_URL: https://id.qa.unique.app/oauth/v2/token
+ ZITADEL_PROJECT_ID: "225317577440629855"
+
+     ZITADEL_CLIENT_ID: manual-confluence-connector-zitadel-client-id # not necessarily a secret but easier to manage like so
+     ZITADEL_CLIENT_SECRET: manual-confluence-connector-zitadel-client-secret
+
+https://unique-ch.atlassian.net/wiki/spaces/PUB/pages/588546089/Service+User+configuration#Generating-client-credentials
+
+The scope id is the id you find in QA in the Knowledge base:
+In the URL like that https://next.qa.unique.app/knowledge-upload/scope_v2c5urvrvslt5vw3epvkfw0g
+
+Project id = same
+
+And some a bit deprecated docs:
+https://unique-ch.atlassian.net/wiki/spaces/PUB/pages/593330232/Ingestion+API
+
+It has some bits and pieces of code that will help us integrate with the unique API.
+They chose the option with bull queue.
+
+
+Here is the current power automate documentation:
+Overview
+Requirements
+Current Export of the Solution
+Architecture
+Overview Diagram
+Scheduler flow
+Sharepoint Files Scan flow
+Ingest Content flow
+IDP Get Access Token flow
+username + password flow (deprecated)
+Delete Flows
+Delete Library
+Delete Site
+Setup
+Add custom column in SharePoint
+Setting up the SharePoint Connector’s Power Automate flows
+Import the Power Automate Solution
+Set Up the Configuration list
+Configure environment variables
+Scopes Considerations
+Scope types
+SP Service User Scope Access
+Known Limitations & Issues
+Ingestion of linked content in SharePoint Pages
+Other Known Limitations
+Splitting the flows
+Scopes + Deletion at library level
+Files
+Overview
+The SharePoint Connector connects Microsoft SharePoint Online to Unique AI via Microsoft PowerAutomate.
+
+Safely Collaborate and Share Content | Microsoft SharePoint
+
+Microsoft Power Automate – Process Automation Platform | Microsoft
+
+The Unique SharePoint connector consists of a series of Power Automate flows bunled in a solution that will be provided by Unique (ZIP file).
+
+Clients need to import and setup the Solution in their own environment’s Power Automate.
+
+As the solution uses environement variables, only one solution can be deployed per environment.
+
+Files and site pages to sync are identified by an ad hoc boolean column (Unique AI in this documentation) whose name can be customised.
+
+The solution runs globally and is able to sync all Sharepoint sites and libraries at once.
+
+Requirements
+A Power Automate (PA) environment with a Dataverse database
+
+A PA user that has the following permissions on Sharepoint:
+
+Read list and library names, as well as the names of the columns for all synchronised sites
+
+Read files and metadata for all synchronised sites and libraries
+
+Read and update the Configuration List items
+
+Power Automate required connectors:
+
+SharePoint
+
+HTTP
+
+Azure Key Vault - Premium connector
+
+An Azure key vault with PA user read permission
+
+Ability to call Unique’s endpoints from the PA environment
+
+Current Export of the Solution
+v. 1.0.0.9 (update: file type validation)
+
+
+
+
+Unique_SP_Connector_Configuration_List.csv
+06 Jun 2025, 01:49 PM
+
+UniqueFinanceGPTSharepointConnector_1_0_0_9.zip
+06 Jun 2025, 01:49 PM
+Architecture
+The architecture of the SharePoint connector with the scheduled sync approach makes the SharePoint integration more scalable and more stable compared to an event based approach, as per the current state of SP events that show unreliability and inconsistency (Aug 2024).
+
+The benefits of following the scheduled approach are:
+
+SIngle run to synchronise multiple libraries without the need to duplicate the PA flows.
+
+Easy and quick customisation by the customer’s SP admins to fit tailored needs.
+
+Direct overview of the flow runs and errors by the SP admins allowing facilitated debugging by the same team that is in charge of running and maintaining SP.
+
+The solution is a collection of flows that scan the files to ingest, detect the changes, and triggers ingestion, changes of folder, or deletion where needed.
+
+The sychronisation flows are called sequentially and the whole synchronisation process cannot run in parallel to ensure consistency.
+
+This means that no matter how high the synchronisation frequency is set, no new synchronisation will be triggered until the ongoing synchronisation is done sending all files to be ingested to Unique.
+
+In the following sections, the logic of the SharePoint connector is explained in an overview diagram and the individual flows are explained in their dedicated section.
+
+Overview Diagram
+
+The Logic of the scheduled SharePoint Flow
+
+
+image-20241129-125018.png
+Sequence Diagram
+
+
+Scheduler flow
+The “Scheduler” flow in the solution is responsible for triggering the sync of the files from SharePoint to Unique’s knowledge base.
+
+The flow triggers the synchronisation process by calling the Sharepoint Files Scan flow.
+
+Sharepoint Files Scan flow
+The flow holds the main logic part and loops through the sites and their libraries. In the process it calls the child flows IDP Get Access Token to get he Unique token, and Ingest Content.
+
+A list of SharePoint Sites that contain content to synchronise in some or all of their libraries must be provided as a configuration list. The main logic in the flow uses this input and executes a series of nested loops.
+
+Within the listed sites, the flow identifies the libraries that have the  Unique AI column set, and fetches the set of files that have been marked for ingestion.
+
+We filter for the published documents and Site Pages with OData__ModerationStatus properties on the file. Field values are as follows:
+
+
+
+0 = Approved
+1 = Rejected
+2 = Pending
+3 = Draft
+A diff is calculated by calling Unique file-diff endpoint on the ingestion service:
+
+Deleted files → if content exists in the knowledge base, the content gets deleted from the knowledge base by Unique’s backend.
+
+ Moved files → path will be adjusted by Unique’s backend to maintain an accurate scope .
+
+New files/ content updated → the list of created and updated files is sent back to the flow, and is passed to the Ingest Content flow.
+
+Ingest Content flow
+The flow is responsible for handling the calls to the Unique ingestion API and uploading the file content to the blob storage for ingestion. IDP Get Access Token flow is called as well in this flow to get a token for the API calls.
+
+Calls to the flow are library based : the flow loops through the provided file id list of new and modified files within a single library and sends them for ingestion.
+
+IDP Get Access Token flow
+The flow is responsible for getting an access token that can be used to call the Unique APIs. Unique sets up a service user for each client that has the necessary permissions to call the ingestion APIs.
+
+The service user’s client credentials will be provided to the clients and are used to get a token in this flow.
+
+username + password flow (deprecated)
+If you are not using a key vault you can use the IDP Get Access Token - username + password flow. You will need to configure the related environment variables.
+
+You will need to modify the child flow called in the Get Access Token actions in both Sharepoint Files Scan and Ingest Content flows to select the proper child flow to get the token.
+
+Delete Flows
+Two flows are responsible for deleting all files belonging to a site and to its libraries.
+
+Delete Library
+Deletes the library by sending an empty array to file-diff. Ingested files are deleted in Unique by Unique’s backend.
+
+Delete Site
+Loops through all site libraries and call Delete Library for each one. THe flow is called when a site is marked for deletion in the configuration list.
+
+Setup
+
+
+Add custom column in SharePoint
+A custom boolean column needs to be added to a SharePoint library to control the ingestion of the files.
+
+To set the custom column:
+
+In SharePoint, add a custom column by clicking the “+ Add column” button. Select the column type “Yes/No”.
+
+
+
+SharePoint custom column setup - creating the column
+
+
+Name the custom column. This will be the name you need to use when setting up the Power Automate Flow variables. Also set a default value for new files.
+
+
+
+SharePoint custom column - naming the column, setting default values
+
+
+After saving and creating the column, you can optionally format the column to make the selected values more obvious to the users in SharePoint. Select the column’s dropdown > Column settings > Format this column. There select “Format yes and no” (you can also choose the colors by editing the styles).
+
+
+
+SharePoint custom column - formatting column style
+Setting up the SharePoint Connector’s Power Automate flows
+The setup process for the Unique SharePoint Connector consists of the following steps:
+
+Import the Power Automate Solution provided by Unique
+
+Configure the environment variables while or after having imported the solution
+
+The steps will be performed in Power Automate, which you can reach by navigating to Microsoft Power Automate.
+
+Import the Power Automate Solution
+Unique provides the Unique SharePoint connector to Customers as an exported Power Automate solution, which is a ZIP file. Along with the ZIP file, the Customers receive client credentials and all necessary values for configuring the environment variables.
+
+In Power Automate navigate to the Solutions tab on the left side. You should see an overview of all existing solutions. On the top, click the Import solution button and you will be prompted to provide a file. Upload and import the ZIP file that Unique provided containing the Power Automate solution for the Unique SharePoint connector.
+
+Set Up the Configuration list
+The Sharepoint sites to synchronise are stored in a Sharepoint list that needs to be accessible from the Power Automate Flow.
+
+The site hosting the list does not have to be synchronised but it must be accessible by the user  running the flow.
+
+The list must contain the following columns:
+
+Title (Text): the title of the site. This is value is not evaluated by the flows, it is used to ease the sites management.
+
+Url (Text): the full url of the site inculding the protocol and the SP domain. Ex: https://uniqueapp.sharepoint.com/sites/SiteToSync
+
+Scope & Owner Type (Choice): these two variables must be setup in accordance with each other. Possible values are:
+
+Owner Type : SCOPE or COMPANY
+
+Scope: COMPANY or PATH or the scope Id applicable to all synced files
+
+Possible set of values and behaviour:
+
+If both variables are set to COMPANY the files will be availble to the whole company.
+
+If Scope is set to PATH, Owner Type must be set to SCOPE: each folder will generate its own permission scope that will be applied to nested files but not to subfolders which will have their own scope as permission set flattens the folder structure.
+
+If Scope is set to a specific scope id applicable to all synchronised files, Owner Type must be set to SCOPE
+
+warning  Any other set of scope values will fail the ingestion calls warning
+
+Delete (Yes/No): marks the site for deletion.
+
+Configure environment variables
+There are two logical sets of environment variables with the global prefix ufgpt like the rest of the objects within the solution:
+
+sp_xxx related to Sharepoint setup
+
+uq_xxxrelated to Unique setup
+
+The Sharepoint variables must be configured as such:
+
+sp_domain : the root Sharepoint domain
+
+Configuration list variables: access to the conflist is managed by 2 environment variables:
+
+sp_list_hosting_site : the site where the configuration list is hosted
+
+sp_sites_list_name : the name of the list
+
+the urls of the sites listed MUST be stored in a column named exactly Url
+
+you can pass the list display name in sp_sites_list_name, but it is recommended to pass the list id to prevent disruption may the list name be inadvertently modified. Go to the list then Settings > List settings. The list id can be found in the url as List={the-list-id}.
+
+sp_sync_column_name : the name of the Unique column that controls for file synchronisation
+
+The Unique variables must be configured as such:
+
+uq_file_sync_endpoint : the url of the file-diff endpoint on ingestion service
+
+uq_idp_project_id: the Zitadel project id
+
+uq_idp_token_endpoint : the Unique token issuer endpoint
+
+uq_ingestion_graphql : /graphql endpoint on ingestion service
+
+uq_store_internally: boolean value that defines whether or not the synced documents should also be stored internally at Unique. This allows users access to the file (e.g.: when clicking references in the chat) without the need to have access to the SharePoint library. Also needed to use the PDF preview / highlighting feature. Default value is false.
+
+If you are using the username + password credential flow (deprecated), set up the following 2 variables:
+
+uq_idp_client_id : Zitadel client id
+
+uq_idp_client_secret : Zitadel client secret
+
+Power Automate does not like empty environment variables so if they are not used, these variables should be left to the default empty string value "".
+
+Scopes Considerations
+Scope types
+3 types of scopes are available:
+
+PATH : file access scopes are attributed by SP folder. Folder hierarchy is flat, meaning that access to a folder does not grant access to subfolder nor top folders. Individual scopes must be attributed manually in the backend
+
+COMPANY : all ingested files are available at the company level
+
+Scope Id: all ingested files are attributed to a single specific scope identified by its scope id (can be different from the company scope id).
+
+SP Service User Scope Access
+The connector is in charge of creating the needed scopes in the case of scope set to PATH. The service user is automatically granted READ/WRITE permission on all the scopes it creates, and only on those.
+
+Known Limitations & Issues
+Ingestion of linked content in SharePoint Pages
+What can be ingested from SharePoint pages has limitations.
+
+What works:
+
+All text content
+
+What does not work:
+
+Linked document libraries
+
+Linked content in general
+
+The limitation stems from the fact that we fetch the content of the SharePoint page from SharePoint’s API via Power Automate flow and what we receive there is the actual content on the page. Linked content, like a embedded Document Library Widget cannot be ingested because it’s just a link / embedding / iFrame that shows content on that page but is loaded from elsewhere (not present in the content we fetch from the API).
+
+Other Known Limitations
+Note that most known limitations can be overcome by adapting the fows to your needs.
+
+The Sharepoint Inline - Power automate connector is designed to serve as a general purpose connector for the Unique chat ingestion.
+
+It mostly serves as a basis for further configurations that match your specific needs, and we will be happy to assist you with those.
+
+Splitting the flows
+In its current form, failing to sync a file will show the whole scheduled synchronisation as failed. Debugging can be cumbersome as you have to go though each iteration to eventually find the culprit. This also means that the whole sync might be tried again until cancellation or resolution.
+
+One way to mitigate this side effect would be to split the ingestion flow to decorrelate the call to Unique from the Sharepoint calls, to have the actual file ingestion flow to be triggered at file level. This would create an unwanted side effect though: as Zitadel is not able to provide the current valid token, it recreates a new token for each call. This means that we would rapidly hit the token issuance limit from the file ingestion flow.
+
+This could be mitigated by scheduling a token issuance and storing it in the key vault, and have the single file ingestion flow fetch the token from the key vault rather than from the token endpoint.
+
+For this, the service principal connecting to the key vault must have write access on the key vault.
+
+Scopes + Deletion at library level
+The connector is designed to work at the sites level, as defined in the configuration list.
+
+In its basic state it is unable to pass scopes at library nor file levels, and unable to automatically deletes individual libraries.
+
+Nonetheless, the flow Delete Library can be called manually if needed.
+
+Also, the configuration list and the Scan Files to Sync flow can be adapted to work at the library levels.
+In the same manner, custom metadata can be added at the file level and flows can be adjusted to pass scopes at file level.
+
+
+Files
+
+Sharepoint Connector-2024-11-29-125434.mmd
+06 Jun 2025, 01:49 PM
+Author
+
+@Jeremy Isnard
+
+
+
+Here is an idea about how we can start working on the project:
+
+Iterative Development Strategy: SharePoint Connector v2
+This document outlines a strategic, iterative approach for developing the SharePoint Connector. The goal is to build the application in logical, deliverable layers, starting with the highest-risk component: the connection to SharePoint.
+
+Iteration 1: The "Scanner" - Proving SharePoint Connectivity
+Goal: To create a simple, single-process application that proves we can successfully connect to SharePoint, authenticate, and retrieve the correct list of files based on the v1 feature parity rules.
+
+Focus: Microsoft Graph authentication and SharePoint query logic.
+
+Tasks to Complete:
+
+Epic 1 (Foundation): Basic project setup. (Tasks 1.1, 1.2, 1.3, 1.4)
+
+Epic 4 (Authentication): Implement Microsoft Graph authentication and token caching. (Task 4.1)
+
+Epic 2 (Scanning): Build the core scanForWork logic to connect to SharePoint. (Partial Task 2.3)
+
+Epic 0 (Feature Parity): Implement the specific query logic for the sync column and moderation status filters. (Tasks 0.1, 0.2)
+
+Deliverable: A runnable service or script that, when executed, authenticates with SharePoint, performs a full scan, and logs the list of identified file IDs to the console. This deliverable proves our core connection and filtering logic is correct before any other dependencies are added.
+
+Iteration 2: Introducing Asynchronicity - The Queue
+Goal: To decouple the scanning process from the processing work. We will take the list of files identified in Iteration 1 and, instead of just logging them, add them as jobs to a BullMQ queue.
+
+Focus: Integrating Redis and BullMQ to handle the flow of tasks.
+
+Tasks to Complete:
+
+Epic 3 (Queue & Worker):
+
+Implement the QueueService to connect to Redis and add jobs to BullMQ. (Task 3.1)
+
+Implement a basic JobProcessor (worker) whose only job is to pull a task from the queue and log its content, proving the round trip works. (Partial Task 3.2)
+
+Modify Scanner: Update the SharePointScannerService from Iteration 1 to send its found files to the QueueService instead of the console.
+
+Deliverable: A service where the scanner finds files and populates a Redis queue. A separate worker process consumes from the queue. We can demonstrate that the entire "find and queue" loop is functional by inspecting the worker logs and the Redis queue.
+
+Iteration 3: Implementing the Pipeline & Scalability
+Goal: To build the "back half" of the connector by implementing the full processing pipeline and preparing the service for multi-pod scaling.
+
+Focus: Business logic implementation and leader election.
+
+Tasks to Complete:
+
+Epic 2 (Leader Election): Implement the DistributedLockService and integrate it into a full SchedulerService to ensure the scan only runs on one pod at a time. (Tasks 2.1, 2.2)
+
+Epic 4 (Authentication & Pipeline):
+
+Implement the Unique API authentication. (Task 4.2)
+
+Build out the complete logic for processFilePipeline and deleteSitePipeline. (Tasks 4.3, 4.4)
+
+Epic 0 (Feature Parity): Implement the file-diff integration and the specific deletion flow logic. (Tasks 0.3, 0.4)
+
+Deliverable: A feature-complete application that can be run on multiple pods. It can scan SharePoint, queue up jobs, and process them end-to-end, achieving full feature parity with the v1 solution.
+
+Iteration 4: Production Hardening
+Goal: To take the feature-complete application and make it truly production-ready by adding robust error handling, observability, and deployment artifacts.
+
+Focus: Resilience, monitoring, and deployment.
+
+Tasks to Complete:
+
+Epic 3 (Resilience): Configure the final worker resilience settings (retries, backoff). (Task 3.3)
+
+Epic 4 (Error Handling): Ensure all errors are properly caught and thrown from the pipeline to trigger the worker's retry logic. (Task 4.5)
+
+Epic 5 (Production Readiness): All tasks. Implement structured logging, Prometheus metrics, the Dockerfile, Kubernetes manifests, and final documentation. (Tasks 5.1 - 5.5)
+
+Deliverable: The final, fully documented, observable, resilient, and deployable service, ready for production.
+
+
+
+Final Project Structure
+This document outlines the final module structure for the SharePoint Connector v2. Each module encapsulates a specific domain of functionality, making the application organized, testable, and maintainable.
+
+src/
+├── app.module.ts         // The root module of the application
+|
+├── config/               // Handles all environment configuration
+│   ├── configuration.ts
+│   └── validation.ts
+|
+├── scheduler/            // Triggers the process on a schedule
+│   ├── scheduler.module.ts
+│   └── scheduler.service.ts
+|
+├── sharepoint-scanner/   // Scans SharePoint for files to be processed
+│   ├── sharepoint-scanner.module.ts
+│   └── sharepoint-scanner.service.ts
+|
+├── queue/                // Manages the job queue (BullMQ) and workers
+│   ├── queue.module.ts
+│   ├── queue.service.ts      // For adding jobs to the queue
+│   └── job-processor.service.ts // The BullMQ worker
+|
+├── pipeline/             // Contains the logic for processing a single file
+│   ├── pipeline.module.ts
+│   └── pipeline.service.ts
+|
+├── common/               // Shared services and utilities
+│   ├── auth/             // Handles authentication for external APIs
+│   │   ├── auth.module.ts
+│   │   └── auth.service.ts
+│   ├── lock/             // The distributed lock service
+│   │   ├── lock.module.ts
+│   │   └── lock.service.ts
+│   └── metrics/          // Prometheus metrics service
+│       ├── metrics.module.ts
+│       └── metrics.service.ts
+
+Module Responsibilities:
+AppModule: The entry point that imports all other feature modules to assemble the application.
+
+ConfigModule: (Not shown in tree, configured in AppModule) Provides validated and structured configuration values from environment variables to the rest of the application.
+
+SchedulerModule: Its sole responsibility is to run a cron job every 15 minutes and trigger the scanning process.
+
+SharepointScannerModule: Responsible for connecting to Microsoft Graph, querying SharePoint sites, and identifying which files need to be processed.
+
+QueueModule: Encapsulates all interaction with BullMQ and Redis. It provides a service for adding jobs to the queue and contains the worker that processes those jobs.
+
+PipelineModule: Contains the detailed, multi-step business logic for processing a single file (Fetch, Transform, Diff, Upload, Ingest).
+
+Common/AuthModule: A shared module responsible for acquiring and caching access tokens for both Microsoft Graph and the Unique API.
+
+Common/LockModule: A shared module containing the DistributedLockService for ensuring singleton execution of the scanner.
+
+Common/MetricsModule: A shared module for exposing application metrics for monitoring.
+
+
+
+How do we make sure that the logs do not contain sensitive information?
