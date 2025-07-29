@@ -10,6 +10,7 @@ import { AuthModule } from './common/auth/auth.module';
 import { MicrosoftGraphModule } from './common/microsoft-graph/microsoft-graph.module';
 import { QueueModule } from './queue/queue.module';
 import { BullBoardModule } from './common/bull-board/bull-board.module';
+import { MetricsModule } from './common/metrics/metrics.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BullBoardModule } from './common/bull-board/bull-board.module';
       load: [configuration],
       validationSchema,
     }),
+    MetricsModule,
     SchedulerModule,
     SharepointScannerModule,
     AuthModule,
