@@ -54,6 +54,5 @@ export interface FileDiffRequest {
 export interface FileDiffResponse {
   newAndUpdatedFiles: string[];
   deletedFiles: string[];
-  unchangedFiles: string[];
   movedFiles: string[];
 }

@@ -13,9 +13,10 @@ export class AuthService {
   private uniqueApiTokenCache: {
     accessToken: string;
     expiresOn: number;
+    acquiredAt: number;
   } | null = null;
 
-  private readonly TOKEN_EXPIRATION_BUFFER_MS = 15 * 60 * 1000;
+  private readonly TOKEN_EXPIRATION_BUFFER_MS = 5 * 60 * 1000;
 
   constructor(
     private readonly configService: ConfigService,
@@ -36,16 +37,17 @@ export class AuthService {
       return this.graphApiTokenCache!.accessToken;
     }
 
+    this.logger.debug('Acquiring new Microsoft Graph API token...');
+
     const tokenRequest = {
       scopes: ['https://graph.microsoft.com/.default'],
     };
 
     try {
-      this.logger.debug('Acquiring new Microsoft Graph API token...');
       const response = await this.msalClient.acquireTokenByClientCredential(tokenRequest);
 
       if (!response?.accessToken) {
-        throw new Error('Failed to acquire Graph API token: Response was null or did not contain an access token.');
+        throw new Error('Failed to acquire Graph API token: Response was null or did not contain an access token');
       }
 
       this.graphApiTokenCache = response;
@@ -58,9 +60,8 @@ export class AuthService {
   }
 
   public async getUniqueApiToken(): Promise<string> {
-    if (this.uniqueApiTokenCache && this.uniqueApiTokenCache.expiresOn > Date.now() + 300000) {
-      this.logger.debug('Returning cached Unique API token.');
-      return this.uniqueApiTokenCache.accessToken;
+    if (!this.isUniqueApiTokenExpiringSoon()) {
+      return this.uniqueApiTokenCache!.accessToken;
     }
 
     this.logger.debug('Acquiring new Unique API token from Zitadel...');
@@ -76,6 +77,7 @@ export class AuthService {
         grant_type: 'client_credentials',
       });
 
+      const now = Date.now();
       const response = await firstValueFrom(
         this.httpService.post(oAuthTokenUrl, params, {
           headers: {
@@ -88,18 +90,19 @@ export class AuthService {
       const tokenData = response.data as {
         access_token: string;
         expires_in: number;
+        token_type: string;
         id_token: string;
       };
 
-      if (!tokenData.access_token || !tokenData.expires_in) {
-        throw new Error('Invalid token response: missing access_token or expires_in');
+      if (!tokenData.access_token) {
+        throw new Error('Invalid token response: missing access_token');
       }
 
-      // Cache the token
-      const expiresAt = Date.now() + tokenData.expires_in * 1000;
+      const expiresAt = now + (tokenData.expires_in * 1000);
       this.uniqueApiTokenCache = {
         accessToken: tokenData.access_token,
         expiresOn: expiresAt,
+        acquiredAt: now,
       };
 
       this.logger.debug(`Successfully acquired new Zitadel token that expires in ${tokenData.expires_in} seconds at ${new Date(expiresAt).toISOString()}`);
@@ -116,5 +119,12 @@ export class AuthService {
       return true;
     }
     return this.graphApiTokenCache.expiresOn.getTime() <= Date.now() + this.TOKEN_EXPIRATION_BUFFER_MS;
+  }
+
+  private isUniqueApiTokenExpiringSoon(): boolean {
+    if (!this.uniqueApiTokenCache?.expiresOn) {
+      return true;
+    }
+    return this.uniqueApiTokenCache.expiresOn <= Date.now() + this.TOKEN_EXPIRATION_BUFFER_MS;
   }
 }

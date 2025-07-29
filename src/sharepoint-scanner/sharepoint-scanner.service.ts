@@ -74,12 +74,11 @@ export class SharepointScannerService {
         uniqueToken,
       );
 
-      this.logger.log(`File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing, 
-      ${diffResult.unchangedFiles.length} unchanged, ${diffResult.deletedFiles.length} deleted`);
+      this.logger.debug(`File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing,
+      ${diffResult.deletedFiles.length} deleted`);
 
       this.metricsService.recordFileDiffResults(
         diffResult.newAndUpdatedFiles.length,
-        diffResult.unchangedFiles.length,
         diffResult.deletedFiles.length,
         diffResult.movedFiles.length,
       );
@@ -111,7 +110,7 @@ export class SharepointScannerService {
       this.metricsService.recordFilesQueued(addFileProcessingJobPromises.length + 1);
 
       if (diffResult.deletedFiles.length > 0) {
-        this.logger.debug(`Note: ${diffResult.deletedFiles.length} files were deleted and will be handled by Unique backend.`);
+        this.logger.debug(`Note: ${diffResult.deletedFiles} files were deleted and will be handled by Unique backend.`);
       }
 
       const scanDurationSeconds = (Date.now() - scanStartTime) / 1000;
