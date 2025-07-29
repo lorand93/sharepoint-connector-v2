@@ -1,8 +1,7 @@
 import Joi from 'joi';
 
 export const validationSchema = Joi.object({
-  NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test'),
+  NODE_ENV: Joi.string().valid('development', 'production', 'test'),
   PORT: Joi.number(),
 
   REDIS_URL: Joi.string().uri().required(),
@@ -21,7 +20,7 @@ export const validationSchema = Joi.object({
   STEP_TIMEOUT_SECONDS: Joi.number().default(30),
   MAX_FILE_SIZE_BYTES: Joi.number().default(209715200), // 200MB
 
-  // Unique API Configuration  
+  // Unique API Configuration
   UNIQUE_INGESTION_URL_GRAPHQL: Joi.string().uri().required(),
   UNIQUE_INGESTION_URL: Joi.string().uri().required(),
   UNIQUE_SCOPE_ID: Joi.string().required(),

@@ -24,7 +24,7 @@ export interface DriveItem {
   file?: {
     mimeType: string;
   };
-  listItem?: ListItem;
+  listItem: ListItem;
   parentReference?: {
     driveId: string;
     siteId: string;
@@ -33,6 +33,8 @@ export interface DriveItem {
 }
 
 export interface ListItem {
+  lastModifiedDateTime: string;
+  createdDateTime: string;
   fields?: ListItemFields;
 }
 

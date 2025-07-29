@@ -11,15 +11,23 @@ export default () => ({
     clientId: process.env.GRAPH_CLIENT_ID,
     clientSecret: process.env.GRAPH_CLIENT_SECRET,
     tenantId: process.env.GRAPH_TENANT_ID,
-    sites: process.env.SHAREPOINT_SITES ? process.env.SHAREPOINT_SITES.split(',') : [],
-    syncColumnName: process.env.SHAREPOINT_SYNC_COLUMN_NAME || 'FinanceGPTKnowledge',
-    allowedMimeTypes: process.env.ALLOWED_MIME_TYPES ? process.env.ALLOWED_MIME_TYPES.split(',') : [],
+    sites: process.env.SHAREPOINT_SITES
+      ? process.env.SHAREPOINT_SITES.split(',')
+      : [],
+    syncColumnName:
+      process.env.SHAREPOINT_SYNC_COLUMN_NAME || 'FinanceGPTKnowledge',
+    allowedMimeTypes: process.env.ALLOWED_MIME_TYPES
+      ? process.env.ALLOWED_MIME_TYPES.split(',')
+      : [],
   },
 
   // Pipeline processing configuration
   pipeline: {
     stepTimeoutSeconds: parseInt(process.env.STEP_TIMEOUT_SECONDS || '30', 10),
-    maxFileSizeBytes: parseInt(process.env.MAX_FILE_SIZE_BYTES || '209715200', 10), // 200MB
+    maxFileSizeBytes: parseInt(
+      process.env.MAX_FILE_SIZE_BYTES || '209715200',
+      10,
+    ), // 200MB
   },
 
   // Unique API configuration

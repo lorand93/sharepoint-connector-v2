@@ -5,11 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [
-    HttpModule,
-    AuthModule,
-    ConfigModule,
-  ],
+  imports: [HttpModule, AuthModule, ConfigModule],
   providers: [SharepointApiService],
   exports: [SharepointApiService],
 })
