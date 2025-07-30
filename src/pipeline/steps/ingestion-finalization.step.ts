@@ -36,8 +36,11 @@ export class IngestionFinalizationStep implements IPipelineStep {
         key: registrationResponse.key,
         mimeType: registrationResponse.mimeType,
         ownerType: registrationResponse.ownerType,
-        url: context.downloadUrl || context.metadata.webUrl,
+        byteSize: registrationResponse.byteSize,
         scopeId: this.configService.get<string>('uniqueApi.scopeId')!,
+        sourceOwnerType: 'USER',
+        sourceName: this.extractSiteName(context.siteUrl),
+        sourceKind: 'MICROSOFT_365_SHAREPOINT',
         fileUrl: registrationResponse.readUrl,
       };
 
@@ -57,6 +60,23 @@ export class IngestionFinalizationStep implements IPipelineStep {
     } catch (error) {
       this.logger.error(`[${context.correlationId}] Ingestion finalization failed: ${error.message}`);
       throw error;
+    }
+  }
+
+  private extractSiteName(siteUrl: string): string {
+    if (!siteUrl) return 'SharePoint';
+
+    try {
+      const url = new URL(siteUrl);
+      const pathParts = url.pathname.split('/').filter(Boolean);
+
+      if (pathParts.length >= 2 && pathParts[0] === 'sites') {
+        return pathParts[1];
+      }
+
+      return url.hostname;
+    } catch {
+      return 'SharePoint';
     }
   }
 }

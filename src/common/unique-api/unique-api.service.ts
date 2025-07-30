@@ -168,15 +168,34 @@ export class UniqueApiService {
         query: `
           mutation ContentUpsert(
             $input: ContentCreateInput!
-            $scopeId: String
             $fileUrl: String
+            $chatId: String
+            $scopeId: String
+            $sourceOwnerType: String
+            $sourceName: String
+            $sourceKind: String
+            $storeInternally: Boolean
           ) {
             contentUpsert(
               input: $input
-              scopeId: $scopeId
               fileUrl: $fileUrl
+              chatId: $chatId
+              scopeId: $scopeId
+              sourceOwnerType: $sourceOwnerType
+              sourceName: $sourceName
+              sourceKind: $sourceKind
+              storeInternally: $storeInternally
             ) {
               id
+              key
+              byteSize
+              mimeType
+              ownerType
+              ownerId
+              writeUrl
+              readUrl
+              createdAt
+              internallyStoredAt
             }
           }`,
         variables: {
@@ -184,10 +203,14 @@ export class UniqueApiService {
             key: request.key,
             mimeType: request.mimeType,
             ownerType: request.ownerType,
-            url: request.url,
+            byteSize: request.byteSize,
           },
           scopeId: request.scopeId,
+          sourceOwnerType: request.sourceOwnerType,
+          sourceName: request.sourceName,
+          sourceKind: request.sourceKind,
           fileUrl: request.fileUrl,
+          storeInternally: true,
         },
       };
 

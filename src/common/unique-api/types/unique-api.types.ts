@@ -28,8 +28,11 @@ export interface IngestionFinalizationRequest {
   key: string;
   mimeType: string;
   ownerType: string;
-  url: string;
+  byteSize: number;
   scopeId: string;
+  sourceOwnerType: string;
+  sourceName: string;
+  sourceKind: string;
   fileUrl: string;
 }
 
