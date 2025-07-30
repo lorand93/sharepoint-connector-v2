@@ -30,22 +30,25 @@ This guide explains how to run the SharePoint Connector v2 using Docker Compose 
 Before running the application, you need to configure the following environment variables in `docker-compose.yml`:
 
 ### SharePoint Configuration
-Replace these with your Azure App Registration details:
-```yaml
-- GRAPH_CLIENT_ID=your-actual-client-id
-- GRAPH_CLIENT_SECRET=your-actual-client-secret
-- GRAPH_TENANT_ID=your-actual-tenant-id
-- SHAREPOINT_SITES=https://yourtenant.sharepoint.com/sites/site1,https://yourtenant.sharepoint.com/sites/site2
+Replace these with your Azure App Registration details in the `.env` file:
+```bash
+GRAPH_CLIENT_ID=your-actual-client-id
+GRAPH_CLIENT_SECRET=your-actual-client-secret
+GRAPH_TENANT_ID=your-actual-tenant-id
+SHAREPOINT_SITES=your-sharepoint-site-id
 ```
 
 ### Unique AI Configuration
-Replace these with the values provided by Unique AI:
-```yaml
-- UNIQUE_SCOPE_ID=your-actual-scope-id
-- ZITADEL_PROJECT_ID=your-actual-project-id
-- ZITADEL_CLIENT_ID=your-actual-zitadel-client-id
-- ZITADEL_CLIENT_SECRET=your-actual-zitadel-client-secret
+Replace these with the values provided by Unique AI in the `.env` file:
+```bash
+UNIQUE_SCOPE_ID=your-actual-scope-id
+ZITADEL_PROJECT_ID=your-actual-project-id
+ZITADEL_CLIENT_ID=your-actual-zitadel-client-id
+ZITADEL_CLIENT_SECRET=your-actual-zitadel-client-secret
 ```
+
+### Security Note
+The `.env` file is automatically ignored by Git (included in `.gitignore`) to prevent sensitive credentials from being committed to version control. Never commit actual credentials to your repository.
 
 ## Services Overview
 
@@ -139,7 +142,7 @@ docker-compose exec redis redis-cli ping
 
 For production deployment:
 
-1. **Environment Variables**: Use proper secrets management instead of plain text in docker-compose.yml
+1. **Environment Variables**: Use proper secrets management instead of plain text in `.env` file. Consider using Docker secrets, Kubernetes secrets, or cloud provider secret management services
 2. **Resource Limits**: Add memory and CPU limits to services
 3. **Networking**: Use proper network isolation
 4. **Persistence**: Ensure Redis data persistence strategy
