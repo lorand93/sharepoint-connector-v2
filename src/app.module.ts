@@ -16,6 +16,7 @@ import { MetricsModule } from './common/metrics/metrics.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.local', '.env'], 
       load: [configuration],
       validationSchema,
     }),

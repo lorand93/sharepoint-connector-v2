@@ -1,6 +1,6 @@
 # --- Stage 1: Builder ---
 # This stage installs all dependencies and builds the application.
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -22,7 +22,7 @@ RUN npm prune --production
 
 # --- Stage 2: Production ---
 # This stage creates the final, lightweight production image.
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
