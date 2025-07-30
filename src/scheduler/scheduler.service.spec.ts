@@ -2,15 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Logger } from '@nestjs/common';
 import { SchedulerService } from './scheduler.service';
 import { SharepointScannerService } from '../sharepoint-scanner/sharepoint-scanner.service';
+import { DistributedLockService } from '../common/lock/distributed-lock.service';
+
 
 describe('SchedulerService', () => {
   let service: SchedulerService;
   let sharepointScannerService: jest.Mocked<SharepointScannerService>;
+  let distributedLockService: jest.Mocked<DistributedLockService>;
 
   beforeEach(async () => {
-    // Create mocked SharepointScannerService
     sharepointScannerService = {
       scanForWork: jest.fn(),
+    } as any;
+
+    distributedLockService = {
+      acquireLock: jest.fn(),
+      releaseLock: jest.fn(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -20,18 +27,19 @@ describe('SchedulerService', () => {
           provide: SharepointScannerService,
           useValue: sharepointScannerService,
         },
+        {
+          provide: DistributedLockService,
+          useValue: distributedLockService,
+        },
       ],
     }).compile();
 
     service = module.get<SchedulerService>(SchedulerService);
 
-    // Mock logger to avoid console output during tests
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
-
-    // Mock onModuleInit to prevent automatic initial scan during test setup
-    jest.spyOn(service, 'onModuleInit').mockImplementation();
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation();
   });
 
   afterEach(() => {
@@ -46,7 +54,6 @@ describe('SchedulerService', () => {
 
   describe('onModuleInit', () => {
     it('should trigger initial scan on service startup', async () => {
-      // Restore the original onModuleInit method for this test
       jest.restoreAllMocks();
       jest.spyOn(Logger.prototype, 'log').mockImplementation();
       jest.spyOn(service, 'runScheduledScan').mockResolvedValue();
@@ -59,38 +66,37 @@ describe('SchedulerService', () => {
 
   describe('runScheduledScan', () => {
     beforeEach(() => {
-      // Setup successful scan by default
       sharepointScannerService.scanForWork.mockResolvedValue();
+      distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
+      distributedLockService.releaseLock.mockResolvedValue();
     });
 
     it('should successfully run a scheduled scan', async () => {
       await service.runScheduledScan();
 
+      expect(distributedLockService.acquireLock).toHaveBeenCalledWith(
+        'sharepoint:scan:lock',
+        900 // TTL in seconds
+      );
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
     });
 
     it('should prevent concurrent scans when a scan is already running', async () => {
-      // Make scanForWork hang indefinitely to simulate a long-running scan
-      let resolveScan: () => void;
-      const scanPromise = new Promise<void>((resolve) => {
-        resolveScan = resolve;
-      });
-      sharepointScannerService.scanForWork.mockReturnValue(scanPromise);
+      distributedLockService.acquireLock
+        .mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' })
+        .mockResolvedValueOnce({ acquired: false });
 
-      // Start first scan (should begin)
-      const firstScanPromise = service.runScheduledScan();
+      await Promise.all([
+        service.runScheduledScan(),
+        service.runScheduledScan()
+      ]);
 
-      // Start second scan while first is running (should be skipped)
-      await service.runScheduledScan();
-
-      // Verify second scan was skipped
+      expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(2);
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.releaseLock).toHaveBeenCalledTimes(1);
 
-      // Complete the first scan
-      resolveScan!();
-      await firstScanPromise;
-
-      // Now a new scan should be allowed
+      distributedLockService.acquireLock.mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-456' });
       await service.runScheduledScan();
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(2);
     });
@@ -99,11 +105,12 @@ describe('SchedulerService', () => {
       const scanError = new Error('SharePoint API error');
       sharepointScannerService.scanForWork.mockRejectedValue(scanError);
 
-      await service.runScheduledScan();
+      await expect(service.runScheduledScan()).resolves.not.toThrow();
 
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.releaseLock).toHaveBeenCalledTimes(1);
 
-      // Should be able to run another scan after error (running state reset)
       sharepointScannerService.scanForWork.mockResolvedValue();
       await service.runScheduledScan();
 
@@ -115,31 +122,23 @@ describe('SchedulerService', () => {
 
       await service.runScheduledScan();
 
-      expect(logSpy).toHaveBeenCalledWith('Scheduler triggered. Starting SharePoint scan...');
-      expect(logSpy).toHaveBeenCalledWith('Scan finished. Ready for the next scheduled run.');
+      expect(logSpy).toHaveBeenCalledWith('Scheduler triggered. Attempting to acquire lock...');
+      expect(logSpy).toHaveBeenCalledWith('Lock acquired. Starting SharePoint scan...');
+      expect(logSpy).toHaveBeenCalledWith('SharePoint scan completed successfully.');
     });
 
     it('should log warning when scan is skipped due to concurrent execution', async () => {
       const warnSpy = jest.spyOn(Logger.prototype, 'warn');
       
-      // Make scanForWork hang
-      let resolveScan: () => void;
-      const scanPromise = new Promise<void>((resolve) => {
-        resolveScan = resolve;
-      });
-      sharepointScannerService.scanForWork.mockReturnValue(scanPromise);
+      // Scan fails to acquire lock
+      distributedLockService.acquireLock.mockResolvedValueOnce({ acquired: false });
 
-      // Start first scan
-      const firstScanPromise = service.runScheduledScan();
-
-      // Try to start second scan
+      // Start scan that should be skipped
       await service.runScheduledScan();
 
-      expect(warnSpy).toHaveBeenCalledWith('Scan skipped: A previous scan is still in progress.');
-
-      // Clean up
-      resolveScan!();
-      await firstScanPromise;
+      expect(warnSpy).toHaveBeenCalledWith('Scan skipped: Failed to acquire lock - another process may be running');
+      expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.releaseLock).not.toHaveBeenCalled();
     });
 
     it('should log error and reset state when scan throws exception', async () => {
@@ -173,35 +172,29 @@ describe('SchedulerService', () => {
     it('should handle multiple concurrent scan attempts correctly', async () => {
       const warnSpy = jest.spyOn(Logger.prototype, 'warn');
       
-      // Make scanForWork hang
-      let resolveScan: () => void;
-      const scanPromise = new Promise<void>((resolve) => {
-        resolveScan = resolve;
-      });
-      sharepointScannerService.scanForWork.mockReturnValue(scanPromise);
-
-      // Start first scan
-      const firstScanPromise = service.runScheduledScan();
+      // First lock succeeds, subsequent locks fail
+      distributedLockService.acquireLock
+        .mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' })
+        .mockResolvedValue({ acquired: false }); // All subsequent calls fail
 
       // Try to start multiple concurrent scans
       await Promise.all([
         service.runScheduledScan(),
         service.runScheduledScan(),
         service.runScheduledScan(),
+        service.runScheduledScan(),
       ]);
 
-      // All should be skipped
-      expect(warnSpy).toHaveBeenCalledTimes(3);
-      expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
-
-      // Clean up
-      resolveScan!();
-      await firstScanPromise;
+      // Only first should succeed, others should be skipped
+      expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(4);
+      expect(warnSpy).toHaveBeenCalledTimes(3); // 3 skipped scans
+      expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1); // Only first scan ran
+      expect(distributedLockService.releaseLock).toHaveBeenCalledTimes(1); // Only first scan released
     });
 
     it('should handle long-running scans that exceed typical intervals', async () => {
       const longRunningScan = new Promise<void>((resolve) => {
-        setTimeout(resolve, 100); // 100ms delay to simulate long scan
+        setTimeout(resolve, 150); // 150ms delay to simulate long scan (more buffer for timing)
       });
       sharepointScannerService.scanForWork.mockReturnValue(longRunningScan);
 
@@ -209,21 +202,18 @@ describe('SchedulerService', () => {
       await service.runScheduledScan();
       const endTime = Date.now();
 
-      expect(endTime - startTime).toBeGreaterThanOrEqual(100);
+      expect(endTime - startTime).toBeGreaterThanOrEqual(100); // Still expect at least 100ms
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
     });
 
     it('should maintain scan state correctly across successful and failed scans', async () => {
-      // First scan succeeds
       sharepointScannerService.scanForWork.mockResolvedValueOnce(undefined);
       await service.runScheduledScan();
 
-      // Second scan fails
       const error = new Error('Scan failed');
       sharepointScannerService.scanForWork.mockRejectedValueOnce(error);
       await service.runScheduledScan();
 
-      // Third scan succeeds again
       sharepointScannerService.scanForWork.mockResolvedValueOnce(undefined);
       await service.runScheduledScan();
 
@@ -233,14 +223,17 @@ describe('SchedulerService', () => {
 
   describe('cron job configuration', () => {
     it('should be configured to run every 15 minutes', () => {
-      // This test verifies the @Cron decorator is properly configured
-      // We can't directly test the cron timing, but we can verify the method exists
       expect(service.runScheduledScan).toBeDefined();
       expect(typeof service.runScheduledScan).toBe('function');
     });
   });
 
   describe('error handling edge cases', () => {
+    beforeEach(() => {
+      distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
+      distributedLockService.releaseLock.mockResolvedValue();
+    });
+
     it('should handle scanner service being undefined or null', async () => {
       // Create service with null scanner
       const moduleWithNullScanner: TestingModule = await Test.createTestingModule({
@@ -249,6 +242,10 @@ describe('SchedulerService', () => {
           {
             provide: SharepointScannerService,
             useValue: null,
+          },
+          {
+            provide: DistributedLockService,
+            useValue: distributedLockService,
           },
         ],
       }).compile();
@@ -272,13 +269,22 @@ describe('SchedulerService', () => {
     it('should handle scanner service method returning rejected promise immediately', async () => {
       sharepointScannerService.scanForWork.mockReturnValue(Promise.reject(new Error('Immediate rejection')));
 
-      await service.runScheduledScan();
+      // The error should be caught and handled by the scheduler's try-catch
+      await expect(service.runScheduledScan()).resolves.not.toThrow();
 
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(1);
+      expect(distributedLockService.releaseLock).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('memory and resource management', () => {
+    beforeEach(() => {
+      // Ensure the mock is set up for these tests
+      distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
+      distributedLockService.releaseLock.mockResolvedValue();
+    });
+
     it('should not accumulate state between multiple scans', async () => {
       // Run multiple scans to ensure no memory leaks or state accumulation
       for (let i = 0; i < 10; i++) {

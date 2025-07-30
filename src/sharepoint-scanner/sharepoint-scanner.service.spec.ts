@@ -74,7 +74,7 @@ describe('SharepointScannerService', () => {
   };
 
   beforeEach(async () => {
-    // Create mocked services
+    configService = {
     configService = {
       get: jest.fn(),
     } as any;
@@ -118,7 +118,7 @@ describe('SharepointScannerService', () => {
 
     service = module.get<SharepointScannerService>(SharepointScannerService);
 
-    // Mock logger to avoid console output during tests
+    jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'debug').mockImplementation();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
@@ -137,7 +137,7 @@ describe('SharepointScannerService', () => {
 
   describe('scanForWork', () => {
     beforeEach(() => {
-      // Setup default successful mocks
+      configService.get.mockReturnValue(['site-1', 'site-2']);
       configService.get.mockReturnValue(['site-1', 'site-2']);
       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem]);
       authService.getUniqueApiToken.mockResolvedValue('unique-token-123');
@@ -196,7 +196,7 @@ describe('SharepointScannerService', () => {
       await service.scanForWork();
 
       expect(metricsService.recordFileDiffResults).toHaveBeenCalledWith(1, 0, 0);
-      expect(metricsService.recordFilesQueued).toHaveBeenCalledWith(3); // 2 files + 1 (implementation logic)
+      expect(metricsService.recordFilesQueued).toHaveBeenCalledWith(3);
     });
 
     it('should handle empty sites configuration', async () => {
@@ -229,7 +229,7 @@ describe('SharepointScannerService', () => {
 
       expect(metricsService.recordScanError).toHaveBeenCalledWith('site-2', 'site_scan_failed');
       expect(sharepointApiService.findAllSyncableFilesForSite).toHaveBeenCalledTimes(2);
-      // Should continue with successful sites
+      expect(authService.getUniqueApiToken).toHaveBeenCalledTimes(1);
       expect(authService.getUniqueApiToken).toHaveBeenCalledTimes(1);
       expect(uniqueApiService.performFileDiff).toHaveBeenCalledTimes(1);
     });
@@ -271,15 +271,15 @@ describe('SharepointScannerService', () => {
 
       await service.scanForWork();
 
-      // Should not throw error but continue processing
+      expect(metricsService.recordScanCompleted).toHaveBeenCalledWith(expect.any(Number));
       expect(metricsService.recordScanCompleted).toHaveBeenCalledWith(expect.any(Number));
     });
 
     it('should process files with different diff results', async () => {
-      // Override default setup to have only one site return files
+      sharepointApiService.findAllSyncableFilesForSite
       sharepointApiService.findAllSyncableFilesForSite
         .mockResolvedValueOnce([mockDriveItem])
-        .mockResolvedValueOnce([]); // Second site has no files
+        .mockResolvedValueOnce([]);
       
       const complexDiffResponse: FileDiffResponse = {
         newAndUpdatedFiles: ['sharepoint_file_file-1'],
@@ -329,7 +329,7 @@ describe('SharepointScannerService', () => {
       };
 
       expect(uniqueApiService.performFileDiff).toHaveBeenCalledWith(
-        [expectedFileDiffItem, expectedFileDiffItem], // Called twice for two sites
+        [expectedFileDiffItem, expectedFileDiffItem],
         'unique-token-123'
       );
     });
@@ -345,7 +345,7 @@ describe('SharepointScannerService', () => {
 
       const recordedDuration = metricsService.recordScanCompleted.mock.calls[0][0];
       expect(recordedDuration).toBeGreaterThanOrEqual(0);
-      expect(recordedDuration).toBeLessThan((endTime - startTime) / 1000 + 1); // Allow some margin
+      expect(recordedDuration).toBeLessThan((endTime - startTime) / 1000 + 1);
     });
   });
 
@@ -381,12 +381,12 @@ describe('SharepointScannerService', () => {
         movedFiles: [],
       });
 
-      // Mock one success and one failure
+      queueService.addFileProcessingJob
       queueService.addFileProcessingJob
         .mockResolvedValueOnce()
         .mockRejectedValueOnce(new Error('Queue failed'));
 
-      // Add another file to test Promise.allSettled behavior
+      sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem, mockDriveItem2]);
       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem, mockDriveItem2]);
       uniqueApiService.performFileDiff.mockResolvedValue({
         newAndUpdatedFiles: ['sharepoint_file_file-1', 'sharepoint_file_file-2'],

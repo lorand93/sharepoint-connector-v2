@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { MetricsService } from './metrics.service';
 import { Counter, Gauge, Histogram, register } from 'prom-client';
 
-// Mock prom-client
+jest.mock('prom-client', () => ({
 jest.mock('prom-client', () => ({
   Counter: jest.fn().mockImplementation(() => ({
     inc: jest.fn(),
@@ -32,7 +32,7 @@ describe('MetricsService', () => {
   let mockHistogram: jest.Mocked<Histogram<string>>;
 
   beforeEach(async () => {
-    // Create mock metrics
+    mockCounter = {
     mockCounter = {
       inc: jest.fn(),
       labels: jest.fn().mockReturnThis(),
@@ -50,7 +50,7 @@ describe('MetricsService', () => {
       labels: jest.fn().mockReturnThis(),
     } as any;
 
-    // Mock the constructor returns
+    (Counter as jest.Mock).mockReturnValue(mockCounter);
     (Counter as jest.Mock).mockReturnValue(mockCounter);
     (Gauge as jest.Mock).mockReturnValue(mockGauge);
     (Histogram as jest.Mock).mockReturnValue(mockHistogram);
@@ -61,7 +61,7 @@ describe('MetricsService', () => {
 
     service = module.get<MetricsService>(MetricsService);
 
-    // Mock logger to avoid console output during tests
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
   });
 
@@ -94,7 +94,7 @@ describe('MetricsService', () => {
 
     it('should call collectDefaultMetrics on module init', () => {
       service.onModuleInit();
-      // This verifies the method exists and can be called
+      expect(service).toBeDefined();
       expect(service).toBeDefined();
     });
   });
@@ -408,21 +408,21 @@ describe('MetricsService Integration', () => {
   });
 
   it('should handle rapid metric updates without interference', () => {
-    // Simple integration test without complex expectations
+    for (let i = 0; i < 10; i++) {
     for (let i = 0; i < 10; i++) {
       service.recordScanStarted();
       service.recordFilesDiscovered(i, `site-${i}`);
       service.recordPipelineCompleted(i % 2 === 0, i * 0.1);
     }
 
-    // Just verify methods don't throw - avoid complex call count expectations
+    expect(() => service.recordScanStarted()).not.toThrow();
     expect(() => service.recordScanStarted()).not.toThrow();
     expect(() => service.recordFilesDiscovered(1, 'test')).not.toThrow();
     expect(() => service.recordPipelineCompleted(true, 1.0)).not.toThrow();
   });
 
   it('should handle complete metric recording lifecycle', () => {
-    // Test the complete flow without complex expectations
+    expect(() => {
     expect(() => {
       service.recordScanStarted();
       service.recordFilesDiscovered(50, 'site-1');

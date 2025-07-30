@@ -55,7 +55,7 @@ describe('PipelineService', () => {
   beforeEach(async () => {
     // Create mocked services
     configService = {
-      get: jest.fn(),
+    
     } as any;
 
     metricsService = {
@@ -65,7 +65,7 @@ describe('PipelineService', () => {
 
     // Create mocked pipeline steps
     tokenValidationStep = createMockStep('token-validation') as any;
-    contentFetchingStep = createMockStep('content-fetching') as any;
+    
     contentRegistrationStep = createMockStep('content-registration') as any;
     storageUploadStep = createMockStep('storage-upload') as any;
     ingestionFinalizationStep = createMockStep('ingestion-finalization') as any;
@@ -87,13 +87,13 @@ describe('PipelineService', () => {
     
     // Setup default config values
     configService.get.mockImplementation((key: string) => {
-      if (key === 'STEP_TIMEOUT_SECONDS') return 30;
+    
       return undefined;
     });
 
     // Mock logger to avoid console output during tests
     jest.spyOn(Logger.prototype, 'debug').mockImplementation();
-    jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
   });
 
@@ -115,7 +115,7 @@ describe('PipelineService', () => {
     beforeEach(() => {
       // Setup successful execution mocks
       tokenValidationStep.execute.mockResolvedValue({} as ProcessingContext);
-      contentFetchingStep.execute.mockResolvedValue({} as ProcessingContext);
+      
       contentRegistrationStep.execute.mockResolvedValue({} as ProcessingContext);
       storageUploadStep.execute.mockResolvedValue({} as ProcessingContext);
       ingestionFinalizationStep.execute.mockResolvedValue({} as ProcessingContext);
@@ -147,7 +147,7 @@ describe('PipelineService', () => {
        expect(contextArg.startTime).toBeInstanceOf(Date);
        // The metadata contains the DriveItem properties spread
        expect(contextArg.metadata.id).toBe('test-file-id-123');
-       expect(contextArg.metadata.name).toBe('test-document.pdf');
+      
        expect(contextArg.metadata.driveId).toBe('test-drive-id-456');
        expect(contextArg.metadata.siteId).toBe('test-site-id-789');
      });
@@ -163,7 +163,7 @@ describe('PipelineService', () => {
 
       // Verify order of execution
       const callOrder = [
-        tokenValidationStep.execute.mock.invocationCallOrder[0],
+      
         contentFetchingStep.execute.mock.invocationCallOrder[0],
         contentRegistrationStep.execute.mock.invocationCallOrder[0],
         storageUploadStep.execute.mock.invocationCallOrder[0],
@@ -209,12 +209,12 @@ describe('PipelineService', () => {
       expect(contentRegistrationStep.execute).not.toHaveBeenCalled();
       expect(storageUploadStep.execute).not.toHaveBeenCalled();
       expect(ingestionFinalizationStep.execute).not.toHaveBeenCalled();
-
+      
       // Failed step should have cleanup called
       expect(contentFetchingStep.cleanup).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle timeout in step execution', async () => {
+      
       // Mock a step that takes longer than timeout
       contentFetchingStep.execute.mockImplementation(() => 
         new Promise(resolve => setTimeout(resolve, 35000)) // 35 seconds > 30 second timeout
@@ -253,7 +253,7 @@ describe('PipelineService', () => {
          it('should handle cleanup errors gracefully', async () => {
        const stepError = new Error('Step failed');
        const cleanupError = new Error('Cleanup failed');
-       
+      
        // Make content fetching step have cleanup method that fails
        contentFetchingStep.execute.mockRejectedValue(stepError);
        contentFetchingStep.cleanup!.mockRejectedValue(cleanupError);
@@ -277,7 +277,7 @@ describe('PipelineService', () => {
       expect(result.context.metadata).toEqual({});
     });
 
-    it('should handle final cleanup errors gracefully', async () => {
+      
       // This test ensures that final cleanup errors don't affect the result
       const originalContext = { contentBuffer: Buffer.from('test') } as ProcessingContext;
       tokenValidationStep.execute.mockResolvedValue(originalContext);

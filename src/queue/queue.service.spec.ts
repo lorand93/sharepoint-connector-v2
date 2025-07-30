@@ -33,7 +33,7 @@ describe('QueueService', () => {
   };
 
   beforeEach(async () => {
-    // Create mock queue
+    mockQueue = {
     mockQueue = {
       add: jest.fn(),
       close: jest.fn(),
@@ -176,7 +176,7 @@ describe('QueueService', () => {
     it('should handle queue close errors gracefully', () => {
       mockQueue.close.mockResolvedValue(undefined);
 
-      // Should not throw error
+      expect(() => service.onModuleDestroy()).not.toThrow();
       expect(() => service.onModuleDestroy()).not.toThrow();
       expect(mockQueue.close).toHaveBeenCalledTimes(1);
     });
@@ -196,7 +196,7 @@ describe('QueueService', () => {
       mockQueue.add.mockResolvedValue({} as any);
       mockQueue.close.mockResolvedValue(undefined);
 
-      // Add multiple jobs rapidly
+      const jobPromises = Array.from({ length: 10 }, (_, i) => 
       const jobPromises = Array.from({ length: 10 }, (_, i) => 
         service.addFileProcessingJob({ ...mockDriveItem, id: `file-${i}` })
       );
@@ -225,7 +225,7 @@ describe('QueueService', () => {
                      fields: {
              id: 'large-file-id',
              ...mockDriveItem.listItem.fields,
-             // Add many custom fields
+             ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` }))
              ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` }))
                .reduce((acc, obj) => ({ ...acc, ...obj }), {}),
            },
@@ -262,7 +262,7 @@ describe('QueueService', () => {
     it('should handle serialization errors for complex objects', async () => {
              const circularReference = { ...mockDriveItem };
        if (circularReference.listItem.fields) {
-         (circularReference.listItem.fields as any).self = circularReference; // Create circular reference
+         (circularReference.listItem.fields as any).self = circularReference;
        }
 
       const serializationError = new Error('Converting circular structure to JSON');
