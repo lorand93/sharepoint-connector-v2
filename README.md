@@ -16,11 +16,11 @@ The SharePoint Connector implements a pipeline-based architecture with the follo
 
 
 ## Notes
-Trigerring the deletion step is not yet implemented. I let this one at the end after the scanning + the processing pipeline works as expected.
-For large sharepoint instances where scanning would take a long time we can start pushing to the processing queue as soon as we've identified changed files. This way we don't have to wait for scanning to complete in order to start processing. 
-I added a distributed lock to support multiple running pods at the same time. This forced me to manage the lock before the service closes due to an error or on purpose.
-I added a distributed rate limiter to the requests we're sending to unique so that if multiple pods are running at the same time we can control the rate at which we're sending requests to unique.
-I did not add a transformation of the file formats step yet. That would be an extra step in the processing pipeline. 
+- Trigerring the deletion step is not yet implemented. I let this one at the end after the scanning + the processing pipeline works as expected.
+- For large sharepoint instances where scanning would take a long time we can start pushing to the processing queue as soon as we've identified changed files. This way we don't have to wait for scanning to complete in order to start processing. 
+- I added a distributed lock to support multiple running pods at the same time. This forced me to manage the lock before the service closes due to an error or on purpose.
+- I added a distributed rate limiter to the requests we're sending to unique so that if multiple pods are running at the same time we can control the rate at which we're sending requests to unique.
+- I did not add a transformation of the file formats step yet. That would be an extra step in the processing pipeline. 
 
 ## Quick Start
 
