@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { DistributedLockService } from './distributed-lock.service';
 
 // Mock ioredis
@@ -12,7 +13,9 @@ jest.mock('ioredis', () => {
 
 const mockRedis = {
   set: jest.fn(),
+  get: jest.fn(),
   del: jest.fn(),
+  expire: jest.fn(),
   disconnect: jest.fn(),
 };
 
@@ -34,6 +37,12 @@ describe('DistributedLockService', () => {
 
     service = module.get<DistributedLockService>(DistributedLockService);
     configService = module.get(ConfigService);
+
+    // Setup Logger spies
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation();
+    jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
 
     // Reset mocks
     jest.clearAllMocks();
@@ -103,6 +112,61 @@ describe('DistributedLockService', () => {
 
       expect(result.acquired).toBe(false);
       expect(result.lockValue).toBeUndefined();
+    });
+  });
+
+  describe('extendLock', () => {
+    it('should extend lock successfully without ownership verification', async () => {
+      mockRedis.expire.mockResolvedValue(1);
+
+      const result = await service.extendLock('test-key', 120);
+
+      expect(result).toBe(true);
+      expect(mockRedis.expire).toHaveBeenCalledWith('test-key', 120);
+      expect(Logger.prototype.debug).toHaveBeenCalledWith('Lock extended: test-key (TTL: 120s)');
+    });
+
+    it('should extend lock successfully with ownership verification', async () => {
+      mockRedis.get.mockResolvedValue('test-lock-value');
+      mockRedis.expire.mockResolvedValue(1);
+
+      const result = await service.extendLock('test-key', 120, 'test-lock-value');
+
+      expect(result).toBe(true);
+      expect(mockRedis.get).toHaveBeenCalledWith('test-key');
+      expect(mockRedis.expire).toHaveBeenCalledWith('test-key', 120);
+      expect(Logger.prototype.debug).toHaveBeenCalledWith('Lock extended: test-key (TTL: 120s)');
+    });
+
+    it('should fail to extend lock when ownership verification fails', async () => {
+      mockRedis.get.mockResolvedValue('different-lock-value');
+
+      const result = await service.extendLock('test-key', 120, 'expected-lock-value');
+
+      expect(result).toBe(false);
+      expect(mockRedis.get).toHaveBeenCalledWith('test-key');
+      expect(mockRedis.expire).not.toHaveBeenCalled();
+      expect(Logger.prototype.warn).toHaveBeenCalledWith('Cannot extend lock test-key: ownership verification failed');
+    });
+
+    it('should fail to extend non-existent lock', async () => {
+      mockRedis.expire.mockResolvedValue(0);
+
+      const result = await service.extendLock('test-key', 120);
+
+      expect(result).toBe(false);
+      expect(mockRedis.expire).toHaveBeenCalledWith('test-key', 120);
+      expect(Logger.prototype.warn).toHaveBeenCalledWith('Failed to extend lock: test-key (lock may not exist)');
+    });
+
+    it('should handle Redis errors during extension', async () => {
+      const redisError = new Error('Redis connection failed');
+      mockRedis.expire.mockRejectedValue(redisError);
+
+      const result = await service.extendLock('test-key', 120);
+
+      expect(result).toBe(false);
+      expect(Logger.prototype.error).toHaveBeenCalledWith('Error extending lock test-key:', redisError);
     });
   });
 

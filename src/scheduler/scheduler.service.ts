@@ -8,6 +8,10 @@ export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
   private readonly lockKey = 'sharepoint:scan:lock';
   private readonly lockTTL = 900; // 15 minutes TTL (same as cron interval)
+  private readonly lockExtensionInterval = 600000; // 10 minutes in milliseconds
+
+  private lockExtensionTimer?: NodeJS.Timeout;
+  private currentLockValue?: string;
 
   constructor(
     private readonly sharepointScanner: SharepointScannerService,
@@ -21,18 +25,20 @@ export class SchedulerService {
     this.runScheduledScan();
   }
 
-
-
   @Cron('*/15 * * * *')
   async runScheduledScan() {
     this.logger.log('Scheduler triggered. Attempting to acquire lock...');
-    
+
     const lockResult = await this.distributedLockService.acquireLock(this.lockKey, this.lockTTL);
-    
+
     if (!lockResult.acquired) {
       this.logger.warn('Scan skipped: Failed to acquire lock - another process may be running');
       return;
     }
+
+    // Store lock value and start extension mechanism
+    this.currentLockValue = lockResult.lockValue;
+    this.startLockExtension();
 
     try {
       this.logger.log('Lock acquired. Starting SharePoint scan...');
@@ -41,7 +47,53 @@ export class SchedulerService {
     } catch (error) {
       this.logger.error('An unexpected error occurred during the scheduled scan.', error.stack);
     } finally {
+      this.stopLockExtension();
       await this.distributedLockService.releaseLock(this.lockKey);
+      this.currentLockValue = undefined;
+    }
+  }
+
+  /**
+   * Starts the periodic lock extension timer
+   */
+  private startLockExtension() {
+    if (this.lockExtensionTimer) {
+      clearInterval(this.lockExtensionTimer);
+    }
+
+    this.lockExtensionTimer = setInterval(async () => {
+      if (this.currentLockValue) {
+        const extended = await this.distributedLockService.extendLock(
+          this.lockKey,
+          this.lockTTL,
+          this.currentLockValue
+        );
+
+        if (extended) {
+          this.logger.debug(`Lock extended successfully for scan operation`);
+        } else {
+          this.logger.warn(`Failed to extend lock - scan may be interrupted`);
+        }
+      }
+    }, this.lockExtensionInterval);
+
+    this.logger.debug(`Lock extension timer started (interval: ${this.lockExtensionInterval}ms)`);
+  }
+
+  private stopLockExtension() {
+    if (this.lockExtensionTimer) {
+      clearInterval(this.lockExtensionTimer);
+      this.lockExtensionTimer = undefined;
+      this.logger.debug('Lock extension timer stopped');
+    }
+  }
+
+  async onModuleDestroy() {
+    this.stopLockExtension();
+
+    if (this.currentLockValue) {
+      await this.distributedLockService.releaseLock(this.lockKey);
+      this.currentLockValue = undefined;
     }
   }
 }

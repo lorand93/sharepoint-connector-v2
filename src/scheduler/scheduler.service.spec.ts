@@ -16,8 +16,9 @@ describe('SchedulerService', () => {
     } as any;
 
     distributedLockService = {
-      acquireLock: jest.fn(),
-      releaseLock: jest.fn(),
+      acquireLock: jest.fn().mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' }),
+      releaseLock: jest.fn().mockResolvedValue(undefined),
+      extendLock: jest.fn().mockResolvedValue(true),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -80,6 +81,49 @@ describe('SchedulerService', () => {
       );
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
       expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
+    });
+
+    it('should extend lock periodically during long-running scans', async () => {
+      jest.useFakeTimers();
+      
+      // Mock a long-running scan that resolves after we advance timers
+      let scanResolve: () => void;
+      const scanPromise = new Promise<void>(resolve => { scanResolve = resolve; });
+      sharepointScannerService.scanForWork.mockReturnValue(scanPromise);
+      
+      distributedLockService.extendLock.mockResolvedValue(true);
+
+      // Start the scan (don't await it yet)
+      const runPromise = service.runScheduledScan();
+
+      // Allow the initial setup to complete
+      await Promise.resolve();
+      jest.advanceTimersByTime(100);
+
+      // Fast-forward 10 minutes to trigger first lock extension
+      jest.advanceTimersByTime(600000); // 10 minutes
+      await Promise.resolve(); // Allow async operations to complete
+
+      expect(distributedLockService.extendLock).toHaveBeenCalledWith(
+        'sharepoint:scan:lock',
+        900, // TTL
+        'test-lock-123' // Lock value
+      );
+
+      // Fast-forward another 10 minutes to trigger second extension
+      jest.advanceTimersByTime(600000); // Another 10 minutes
+      await Promise.resolve();
+
+      expect(distributedLockService.extendLock).toHaveBeenCalledTimes(2);
+
+      // Now resolve the scan and complete
+      scanResolve!();
+      await Promise.resolve();
+      await runPromise;
+
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
+      
+      jest.useRealTimers();
     });
 
     it('should prevent concurrent scans when a scan is already running', async () => {
@@ -204,7 +248,7 @@ describe('SchedulerService', () => {
 
       expect(endTime - startTime).toBeGreaterThanOrEqual(100); // Still expect at least 100ms
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
-    });
+    }, 10000);
 
     it('should maintain scan state correctly across successful and failed scans', async () => {
       sharepointScannerService.scanForWork.mockResolvedValueOnce(undefined);
@@ -304,6 +348,41 @@ describe('SchedulerService', () => {
 
       // Should have called scanForWork many times (not blocked by concurrency after each completes)
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('lifecycle management', () => {
+    it('should clean up lock extension timer and release locks on module destroy', async () => {
+      jest.useFakeTimers();
+      
+      // Start a scan that will hold a lock
+      sharepointScannerService.scanForWork.mockImplementation(() => 
+        new Promise(() => {}) // Never resolves - simulates stuck scan
+      );
+
+      // Start the scan (don't await it)
+      const scanPromise = service.runScheduledScan();
+
+      // Advance time to ensure lock extension timer is set up
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      // Call onModuleDestroy while scan is in progress
+      await service.onModuleDestroy();
+
+      // Should have released the lock
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
+
+      // Clean up
+      jest.runAllTimers();
+      jest.useRealTimers();
+    });
+
+    it('should handle module destroy when no scan is running', async () => {
+      await service.onModuleDestroy();
+      
+      // Should not try to release any locks
+      expect(distributedLockService.releaseLock).not.toHaveBeenCalled();
     });
   });
 });

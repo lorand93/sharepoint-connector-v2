@@ -8,7 +8,6 @@ export class DistributedLockService {
   private readonly redis: Redis;
 
   constructor(private readonly configService: ConfigService) {
-    // Initialize Redis connection for distributed locking
     const redisUrl = this.configService.get<string>('redis.url');
     if (!redisUrl) {
       throw new Error('Redis URL not configured');
@@ -18,13 +17,6 @@ export class DistributedLockService {
     this.logger.debug('DistributedLockService initialized with Redis backing');
   }
 
-  /**
-   * Attempts to acquire a distributed lock
-   * @param lockKey The unique key for the lock
-   * @param ttlSeconds Time-to-live for the lock in seconds
-   * @param lockValue Optional custom lock value, defaults to process.pid-timestamp
-   * @returns Object with success flag and lock value if acquired
-   */
   async acquireLock(
     lockKey: string,
     ttlSeconds: number,
@@ -35,7 +27,7 @@ export class DistributedLockService {
       const result = await this.redis.set(
         lockKey,
         value,
-        'EX', // Set expiration
+        'EX',
         ttlSeconds,
         'NX' // Only set if key doesn't exist
       );
@@ -54,10 +46,38 @@ export class DistributedLockService {
     }
   }
 
-  /**
-   * Releases a distributed lock
-   * @param lockKey The unique key for the lock
-   */
+  async extendLock(
+    lockKey: string,
+    ttlSeconds: number,
+    lockValue?: string
+  ): Promise<boolean> {
+    try {
+      if (lockValue) {
+        // Verify we own the lock before extending it
+        const currentValue = await this.redis.get(lockKey);
+        if (currentValue !== lockValue) {
+          this.logger.warn(`Cannot extend lock ${lockKey}: ownership verification failed`);
+          return false;
+        }
+      }
+
+      // Extend the lock TTL
+      const result = await this.redis.expire(lockKey, ttlSeconds);
+      const extended = result === 1;
+
+      if (extended) {
+        this.logger.debug(`Lock extended: ${lockKey} (TTL: ${ttlSeconds}s)`);
+      } else {
+        this.logger.warn(`Failed to extend lock: ${lockKey} (lock may not exist)`);
+      }
+
+      return extended;
+    } catch (error) {
+      this.logger.error(`Error extending lock ${lockKey}:`, error);
+      return false;
+    }
+  }
+
   async releaseLock(lockKey: string): Promise<void> {
     try {
       await this.redis.del(lockKey);
@@ -68,12 +88,6 @@ export class DistributedLockService {
   }
 
 
-
-
-
-  /**
-   * Cleanup method called when the service is destroyed
-   */
   async onModuleDestroy() {
     try {
       await this.redis.disconnect();
