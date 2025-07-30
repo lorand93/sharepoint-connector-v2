@@ -15,7 +15,7 @@ The SharePoint Connector implements a pipeline-based architecture with the follo
 - **Containerized Deployment** - Docker and Docker Compose support
 
 
-## Notes
+## Notes from the developer
 - Trigerring the deletion step is not yet implemented. I let this one at the end after the scanning + the processing pipeline works as expected.
 - For large sharepoint instances where scanning would take a long time we can start pushing to the processing queue as soon as we've identified changed files. This way we don't have to wait for scanning to complete in order to start processing. 
 - I added a distributed lock to support multiple running pods at the same time. This forced me to manage the lock before the service closes due to an error or on purpose.
