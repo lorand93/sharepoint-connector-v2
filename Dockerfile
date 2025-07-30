@@ -1,40 +1,52 @@
-# Use the official Node.js 20 alpine image
+# --- Stage 1: Builder ---
+# This stage installs all dependencies and builds the application.
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Remove development dependencies for a cleaner final image
+RUN npm prune --production
+
+
+# --- Stage 2: Production ---
+# This stage creates the final, lightweight production image.
 FROM node:20-alpine
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Set working directory
-WORKDIR /usr/src/app
-
-# Create non-root user early (better practice)
+# Create a non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 -G nodejs
 
-# Copy package files
-COPY --chown=nestjs:nodejs package*.json ./
-
-# Switch to non-root user for npm install (more secure)
+# Set the user
 USER nestjs
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+WORKDIR /usr/src/app
 
-# Copy source code (as non-root user)
-COPY --chown=nestjs:nodejs . .
+# Copy the built application and production node_modules from the builder stage
+COPY --chown=nestjs:nodejs --from=builder /usr/src/app/dist ./dist
+COPY --chown=nestjs:nodejs --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=nestjs:nodejs --from=builder /usr/src/app/package.json ./package.json
 
-# Build the application
-RUN npm run build
 
 # Expose the port
 EXPOSE 3000
 
-# Health check (improved with curl if available, fallback to node)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
-
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application
-CMD ["npm", "run", "start:prod"]
+# Start the application from the compiled code
+CMD ["node", "dist/main"]
