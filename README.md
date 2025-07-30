@@ -18,7 +18,7 @@ The SharePoint Connector implements a pipeline-based architecture with the follo
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 24 
 - Redis (for queues and distributed locking)
 - SharePoint App Registration with Graph API permissions
 - Unique API credentials (Zitadel OAuth)
