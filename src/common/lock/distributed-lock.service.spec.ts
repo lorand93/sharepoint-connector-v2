@@ -16,6 +16,7 @@ const mockRedis = {
   get: jest.fn(),
   del: jest.fn(),
   expire: jest.fn(),
+  eval: jest.fn(),
   disconnect: jest.fn(),
 };
 
@@ -29,10 +30,7 @@ describe('DistributedLockService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DistributedLockService,
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
+      providers: [DistributedLockService, { provide: ConfigService, useValue: mockConfigService }],
     }).compile();
 
     service = module.get<DistributedLockService>(DistributedLockService);
@@ -70,13 +68,7 @@ describe('DistributedLockService', () => {
 
       expect(result.acquired).toBe(true);
       expect(result.lockValue).toBeDefined();
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        'test-key',
-        expect.any(String),
-        'EX',
-        60,
-        'NX'
-      );
+      expect(mockRedis.set).toHaveBeenCalledWith('test-key', expect.any(String), 'EX', 60, 'NX');
     });
 
     it('should fail to acquire lock when key already exists', async () => {
@@ -96,13 +88,7 @@ describe('DistributedLockService', () => {
 
       expect(result.acquired).toBe(true);
       expect(result.lockValue).toBe(customValue);
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        'test-key',
-        customValue,
-        'EX',
-        60,
-        'NX'
-      );
+      expect(mockRedis.set).toHaveBeenCalledWith('test-key', customValue, 'EX', 60, 'NX');
     });
 
     it('should handle Redis errors gracefully', async () => {
@@ -171,18 +157,58 @@ describe('DistributedLockService', () => {
   });
 
   describe('releaseLock', () => {
-    it('should successfully release lock', async () => {
+    it('should successfully release lock without ownership verification', async () => {
       mockRedis.del.mockResolvedValue(1);
 
-      await expect(service.releaseLock('test-key')).resolves.not.toThrow();
+      const result = await service.releaseLock('test-key');
+      
+      expect(result).toBe(true);
       expect(mockRedis.del).toHaveBeenCalledWith('test-key');
+    });
+
+    it('should successfully release lock with ownership verification', async () => {
+      mockRedis.eval.mockResolvedValue(1);
+
+      const result = await service.releaseLock('test-key', 'test-lock-value');
+      
+      expect(result).toBe(true);
+      expect(mockRedis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('if redis.call'),
+        1,
+        'test-key',
+        'test-lock-value'
+      );
+    });
+
+    it('should fail to release lock when ownership verification fails', async () => {
+      mockRedis.eval.mockResolvedValue(0);
+
+      const result = await service.releaseLock('test-key', 'wrong-lock-value');
+      
+      expect(result).toBe(false);
+      expect(mockRedis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('if redis.call'),
+        1,
+        'test-key',
+        'wrong-lock-value'
+      );
     });
 
     it('should handle Redis errors during release', async () => {
       mockRedis.del.mockRejectedValue(new Error('Redis connection failed'));
 
-      await expect(service.releaseLock('test-key')).resolves.not.toThrow();
+      const result = await service.releaseLock('test-key');
+      
+      expect(result).toBe(false);
       expect(mockRedis.del).toHaveBeenCalledWith('test-key');
+    });
+
+    it('should handle Redis errors during ownership verification', async () => {
+      mockRedis.eval.mockRejectedValue(new Error('Redis connection failed'));
+
+      const result = await service.releaseLock('test-key', 'test-lock-value');
+      
+      expect(result).toBe(false);
     });
   });
 
@@ -216,10 +242,7 @@ describe('DistributedLockService', () => {
     it('should handle concurrent lock attempts on different keys', async () => {
       mockRedis.set.mockResolvedValue('OK');
 
-      const [result1, result2] = await Promise.all([
-        service.acquireLock('key-1', 60),
-        service.acquireLock('key-2', 60),
-      ]);
+      const [result1, result2] = await Promise.all([service.acquireLock('key-1', 60), service.acquireLock('key-2', 60)]);
 
       expect(result1.acquired).toBe(true);
       expect(result2.acquired).toBe(true);

@@ -17,11 +17,7 @@ export class DistributedLockService {
     this.logger.debug('DistributedLockService initialized with Redis backing');
   }
 
-  async acquireLock(
-    lockKey: string,
-    ttlSeconds: number,
-    lockValue?: string
-  ): Promise<{ acquired: boolean; lockValue?: string }> {
+  async acquireLock(lockKey: string, ttlSeconds: number, lockValue?: string): Promise<{ acquired: boolean; lockValue?: string }> {
     try {
       const value = lockValue || `${process.pid}-${Date.now()}`;
       const result = await this.redis.set(
@@ -29,7 +25,7 @@ export class DistributedLockService {
         value,
         'EX',
         ttlSeconds,
-        'NX' // Only set if key doesn't exist
+        'NX', // Only set if key doesn't exist
       );
 
       const acquired = result === 'OK';
@@ -46,11 +42,7 @@ export class DistributedLockService {
     }
   }
 
-  async extendLock(
-    lockKey: string,
-    ttlSeconds: number,
-    lockValue?: string
-  ): Promise<boolean> {
+  async extendLock(lockKey: string, ttlSeconds: number, lockValue?: string): Promise<boolean> {
     try {
       if (lockValue) {
         // Verify we own the lock before extending it
@@ -78,15 +70,38 @@ export class DistributedLockService {
     }
   }
 
-  async releaseLock(lockKey: string): Promise<void> {
+  async releaseLock(lockKey: string, lockValue?: string): Promise<boolean> {
     try {
-      await this.redis.del(lockKey);
-      this.logger.debug(`Lock released for key: ${lockKey}`);
+      if (lockValue) {
+        // Use Lua script to atomically verify ownership and release lock
+        const luaScript = `
+          if redis.call('GET', KEYS[1]) == ARGV[1] then
+            return redis.call('DEL', KEYS[1])
+          else
+            return 0
+          end
+        `;
+
+        const result = await this.redis.eval(luaScript, 1, lockKey, lockValue) as number;
+        const released = result === 1;
+
+        if (released) {
+          this.logger.debug(`Lock released with ownership verification: ${lockKey}`);
+        } else {
+          this.logger.warn(`Failed to release lock - ownership verification failed: ${lockKey}`);
+        }
+
+        return released;
+      } else {
+        await this.redis.del(lockKey);
+        this.logger.debug(`Lock released (no verification): ${lockKey}`);
+        return true;
+      }
     } catch (error) {
       this.logger.error(`Error releasing lock for key ${lockKey}:`, error);
+      return false;
     }
   }
-
 
   async onModuleDestroy() {
     try {
