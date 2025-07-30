@@ -11,7 +11,7 @@ The SharePoint Connector implements a pipeline-based architecture with the follo
 - **Distributed Locking** - Redis-backed coordination for multi-instance deployments
 - **Queue-Based Processing** - BullMQ for reliable job processing with retries
 - **Comprehensive Monitoring** - Prometheus metrics and structured logging
-- **Rate Limiting** - Bottleneck-based protection for external APIs
+- **Distributed Rate Limiting** - Bottleneck-based protection for external APIs
 - **Containerized Deployment** - Docker and Docker Compose support
 
 
