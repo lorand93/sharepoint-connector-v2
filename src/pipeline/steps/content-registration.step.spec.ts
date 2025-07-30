@@ -108,22 +108,18 @@ describe('ContentRegistrationStep', () => {
 
       expect(uniqueApiService.registerContent).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'test-file.pdf',
           key: 'sharepoint_test-site-id_test-drive-id_test-file-id',
           mimeType: 'application/pdf',
           ownerType: 'SCOPE',
           scopeId: 'test-scope-id',
-          sourceOwnerType: 'COMPANY',
-          sourceKind: 'UNIQUE_BLOB_STORAGE',
+          sourceOwnerType: 'USER',
+          sourceKind: 'MICROSOFT_365_SHAREPOINT',
           sourceName: 'testsite',
         } as ContentRegistrationRequest),
-        uniqueToken
+        uniqueToken,
       );
 
-      expect(metricsService.recordPipelineStepDuration).toHaveBeenCalledWith(
-        PipelineStep.CONTENT_REGISTRATION,
-        expect.any(Number)
-      );
+      expect(metricsService.recordPipelineStepDuration).toHaveBeenCalledWith(PipelineStep.CONTENT_REGISTRATION, expect.any(Number));
     });
 
     it('should handle missing metadata gracefully', async () => {
@@ -145,7 +141,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           key: 'sharepoint_unknown-site_unknown-drive_test-file-id',
         }),
-        uniqueToken
+        uniqueToken,
       );
       expect(result.uploadUrl).toBe(mockRegistrationResponse.writeUrl);
     });
@@ -170,7 +166,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           mimeType: 'application/octet-stream',
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
 
@@ -178,21 +174,17 @@ describe('ContentRegistrationStep', () => {
       const authError = new Error('Token acquisition failed');
       authService.getUniqueApiToken.mockRejectedValue(authError);
 
-      await expect(step.execute({ ...mockContext })).rejects.toThrow(
-        'Token acquisition failed'
-      );
+      await expect(step.execute({ ...mockContext })).rejects.toThrow('Token acquisition failed');
     });
 
     it('should handle unique API service errors', async () => {
       const uniqueToken = 'valid-unique-token';
       const apiError = new Error('Registration failed');
-      
+
       authService.getUniqueApiToken.mockResolvedValue(uniqueToken);
       uniqueApiService.registerContent.mockRejectedValue(apiError);
 
-      await expect(step.execute({ ...mockContext })).rejects.toThrow(
-        'Registration failed'
-      );
+      await expect(step.execute({ ...mockContext })).rejects.toThrow('Registration failed');
     });
 
     it('should preserve original context properties', async () => {
@@ -228,7 +220,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           key: 'sharepoint_test-site-id_test-drive-id_test-file-id',
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
 
@@ -243,7 +235,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           sourceName: 'testsite', // Extracted from /sites/testsite
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
 
@@ -263,7 +255,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           sourceName: 'SharePoint', // Default fallback
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
 
@@ -283,7 +275,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           sourceName: 'SharePoint', // Default fallback
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
 
@@ -303,7 +295,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           sourceName: 'tenant.sharepoint.com', // Hostname fallback
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
   });
@@ -334,7 +326,7 @@ describe('ContentRegistrationStep', () => {
         expect.objectContaining({
           scopeId: undefined,
         }),
-        uniqueToken
+        uniqueToken,
       );
     });
   });

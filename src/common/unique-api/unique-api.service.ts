@@ -10,6 +10,7 @@ import {
   FileDiffRequest,
   FileDiffResponse,
   IngestionApiResponse,
+  IngestionApiResponseWrapper,
   ApiResponse,
 } from './types/unique-api.types';
 
@@ -30,8 +31,8 @@ export class UniqueApiService {
         host: redisUrl.hostname,
         port: parseInt(redisUrl.port, 10),
       },
-      maxConcurrent: 1,  
-      minTime: 100,  // Minimum 100ms between requests (600 requests per minute max)
+      maxConcurrent: 1,
+      minTime: 50, // Minimum 50ms between requests (600 requests per minute max)
     });
   }
 
@@ -50,17 +51,23 @@ export class UniqueApiService {
         query: `
           mutation ContentUpsert(
             $input: ContentCreateInput!
+            $fileUrl: String
+            $chatId: String
             $scopeId: String
             $sourceOwnerType: String
             $sourceName: String
             $sourceKind: String
+            $storeInternally: Boolean
           ) {
             contentUpsert(
               input: $input
+              fileUrl: $fileUrl
+              chatId: $chatId
               scopeId: $scopeId
               sourceOwnerType: $sourceOwnerType
               sourceName: $sourceName
               sourceKind: $sourceKind
+              storeInternally: $storeInternally
             ) {
               id
               key
@@ -72,14 +79,10 @@ export class UniqueApiService {
               readUrl
               createdAt
               internallyStoredAt
-              source {
-                kind
-              }
             }
           }`,
         variables: {
           input: {
-            title: request.title,
             key: request.key,
             mimeType: request.mimeType,
             ownerType: request.ownerType,
@@ -88,12 +91,13 @@ export class UniqueApiService {
           sourceOwnerType: request.sourceOwnerType,
           sourceKind: request.sourceKind,
           sourceName: request.sourceName,
+          storeInternally: true,
         },
       };
 
       try {
         const response = await firstValueFrom(
-          this.httpService.post<ApiResponse<IngestionApiResponse>>(graphqlUrl, gqlQuery, {
+          this.httpService.post<ApiResponse<IngestionApiResponseWrapper>>(graphqlUrl, gqlQuery, {
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${uniqueToken}`,

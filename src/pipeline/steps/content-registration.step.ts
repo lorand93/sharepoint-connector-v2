@@ -28,13 +28,12 @@ export class ContentRegistrationStep implements IPipelineStep {
       const fileKey = this.generateFileKey(context);
 
       const registrationRequest: ContentRegistrationRequest = {
-        title: context.fileName,
         key: fileKey,
         mimeType: context.metadata.mimeType || 'application/octet-stream',
         ownerType: 'SCOPE',
         scopeId: this.configService.get<string>('uniqueApi.scopeId')!,
-        sourceOwnerType: 'COMPANY',
-        sourceKind: 'UNIQUE_BLOB_STORAGE',
+        sourceOwnerType: 'USER',
+        sourceKind: 'MICROSOFT_365_SHAREPOINT',
         sourceName: this.extractSiteName(context.siteUrl),
       };
 

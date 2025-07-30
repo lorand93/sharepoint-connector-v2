@@ -1,5 +1,4 @@
 export interface ContentRegistrationRequest {
-  title: string;
   key: string;
   mimeType: string;
   ownerType: string;
@@ -62,16 +61,16 @@ export interface IngestionApiResponse {
   key: string;
   byteSize: number;
   mimeType: string;
-  ownerType: 'SCOPE' | string;
+  ownerType: string;
   ownerId: string;
   writeUrl: string;
   readUrl: string;
   createdAt: string;
   internallyStoredAt: string | null;
-  source: 'UNIQUE_BLOB_STORAGE' | string;
+  source: string;
 }
 
-export interface IngestionApiResponse {
+export interface IngestionApiResponseWrapper {
   contentUpsert: IngestionApiResponse;
 }
 
