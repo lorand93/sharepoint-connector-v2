@@ -15,13 +15,12 @@ export class SharepointApiService {
     private readonly httpService: HttpService,
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {
-  }
+  ) {}
 
   public async findAllSyncableFilesForSite(siteId: string): Promise<DriveItem[]> {
     this.logger.debug(`Starting recursive file scan for site: ${siteId}`);
     const drives = await this.getDrivesForSite(siteId);
-    let allSyncableFiles: DriveItem[] = [];
+    const allSyncableFiles: DriveItem[] = [];
 
     for (const drive of drives) {
       this.logger.debug(`Scanning library (drive): ${drive.name} (${drive.id})`);
@@ -34,13 +33,13 @@ export class SharepointApiService {
   }
 
   private async getDrivesForSite(siteId: string): Promise<Drive[]> {
-    let allDrives: Drive[] = [];
+    const allDrives: Drive[] = [];
     let url = `${this.GRAPH_API_BASE_URL}/sites/${siteId}/drives`;
 
     while (url) {
-      const response = await this.makeGraphRequest<{data: {value: Drive[]}}>((token) => {
-        const headers = {Authorization: `Bearer ${token}`};
-        return firstValueFrom(this.httpService.get(url, {headers}));
+      const response = await this.makeGraphRequest<{ data: { value: Drive[] } }>((token) => {
+        const headers = { Authorization: `Bearer ${token}` };
+        return firstValueFrom(this.httpService.get(url, { headers }));
       });
       allDrives.push(...(response.data.value || []));
       url = response.data['@odata.nextLink'];
@@ -49,14 +48,14 @@ export class SharepointApiService {
   }
 
   private async recursivelyFetchAndFilterFiles(driveId: string, itemId: string): Promise<DriveItem[]> {
-    let syncableFiles: DriveItem[] = [];
+    const syncableFiles: DriveItem[] = [];
     const queryParams = 'select=id,name,webUrl,size,lastModifiedDateTime,folder,file,listItem,parentReference&expand=listItem(expand=fields,parentReference)';
     let url = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/children?${queryParams}`;
 
     while (url) {
-      const response = await this.makeGraphRequest<{data: {value: DriveItem[]}}>((token) => {
-        const headers = {Authorization: `Bearer ${token}`};
-        return firstValueFrom(this.httpService.get(url, {headers}));
+      const response = await this.makeGraphRequest<{ data: { value: DriveItem[] } }>((token) => {
+        const headers = { Authorization: `Bearer ${token}` };
+        return firstValueFrom(this.httpService.get(url, { headers }));
       });
       const items: DriveItem[] = response.data.value || [];
 
@@ -110,7 +109,7 @@ export class SharepointApiService {
     const maxFileSizeBytes = this.configService.get<number>('pipeline.maxFileSizeBytes', 209715200); // 200MB default
 
     const responseStream = await this.makeGraphRequest(async (token) => {
-      const headers = {Authorization: `Bearer ${token}`};
+      const headers = { Authorization: `Bearer ${token}` };
       const downloadUrl = `${this.GRAPH_API_BASE_URL}/drives/${driveId}/items/${itemId}/content`;
 
       const response = await firstValueFrom(
@@ -147,7 +146,7 @@ export class SharepointApiService {
   }
 
   private async makeGraphRequest<T>(apiCall: (token: string) => Promise<T>): Promise<T> {
-    let token = await this.authService.getGraphApiToken();
+    const token = await this.authService.getGraphApiToken();
     try {
       return await apiCall(token);
     } catch (error) {

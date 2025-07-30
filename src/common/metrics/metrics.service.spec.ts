@@ -206,18 +206,18 @@ describe('MetricsService', () => {
 
         service.recordScanError(siteId, errorType);
 
-        expect(service.scanErrors.inc).toHaveBeenCalledWith({ 
-          site: siteId, 
-          error_type: errorType 
+        expect(service.scanErrors.inc).toHaveBeenCalledWith({
+          site: siteId,
+          error_type: errorType,
         });
       });
 
       it('should handle global errors', () => {
         service.recordScanError('global', 'authentication_failed');
 
-        expect(service.scanErrors.inc).toHaveBeenCalledWith({ 
-          site: 'global', 
-          error_type: 'authentication_failed' 
+        expect(service.scanErrors.inc).toHaveBeenCalledWith({
+          site: 'global',
+          error_type: 'authentication_failed',
         });
       });
     });
@@ -257,13 +257,7 @@ describe('MetricsService', () => {
       });
 
       it('should handle different pipeline steps', () => {
-        const steps = [
-          'token-validation',
-          'content-fetching', 
-          'content-registration',
-          'storage-upload',
-          'ingestion-finalization'
-        ];
+        const steps = ['token-validation', 'content-fetching', 'content-registration', 'storage-upload', 'ingestion-finalization'];
 
         steps.forEach((step, index) => {
           service.recordPipelineStepDuration(step, index + 1);
@@ -288,7 +282,7 @@ describe('MetricsService', () => {
       it('should handle various file sizes', () => {
         const sizes = [1024, 1024000, 10240000, 0]; // 1KB, 1MB, 10MB, 0 bytes
 
-        sizes.forEach(size => {
+        sizes.forEach((size) => {
           service.recordFileSize(size);
         });
 
@@ -432,4 +426,4 @@ describe('MetricsService Integration', () => {
       service.setHealthy(true);
     }).not.toThrow();
   });
-}); 
+});

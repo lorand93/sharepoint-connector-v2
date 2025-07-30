@@ -29,23 +29,23 @@ describe('PipelineService', () => {
   });
 
   const mockDriveItem: DriveItem = {
-      id: 'test-file-id-123',
-      name: 'test-document.pdf',
-      webUrl: 'https://tenant.sharepoint.com/sites/test/document.pdf',
+    id: 'test-file-id-123',
+    name: 'test-document.pdf',
+    webUrl: 'https://tenant.sharepoint.com/sites/test/document.pdf',
     size: 1024000,
-      lastModifiedDateTime: '2024-01-15T10:30:00Z',
-      file: {
-        mimeType: 'application/pdf',
-      },
-      folder: undefined, // Explicitly set to undefined for files
-      parentReference: {
-        driveId: 'test-drive-id-456',
-        siteId: 'test-site-id-789',
-        path: '/sites/test/documents',
-      },
-      listItem: {
-        fields: {
-          id: 'test-listitem-id',
+    lastModifiedDateTime: '2024-01-15T10:30:00Z',
+    file: {
+      mimeType: 'application/pdf',
+    },
+    folder: undefined, // Explicitly set to undefined for files
+    parentReference: {
+      driveId: 'test-drive-id-456',
+      siteId: 'test-site-id-789',
+      path: '/sites/test/documents',
+    },
+    listItem: {
+      fields: {
+        id: 'test-listitem-id',
         OData__ModerationStatus: 0,
       },
       lastModifiedDateTime: '2024-01-15T10:30:00Z',
@@ -85,16 +85,15 @@ describe('PipelineService', () => {
     }).compile();
 
     service = module.get<PipelineService>(PipelineService);
-    
+
     // Setup default config values
     configService.get.mockImplementation((key: string) => {
-    
       return undefined;
     });
 
     // Mock logger to avoid console output during tests
     jest.spyOn(Logger.prototype, 'debug').mockImplementation();
-    
+
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
   });
 
@@ -116,7 +115,7 @@ describe('PipelineService', () => {
     beforeEach(() => {
       // Setup successful execution mocks
       tokenValidationStep.execute.mockResolvedValue({} as ProcessingContext);
-      
+
       contentRegistrationStep.execute.mockResolvedValue({} as ProcessingContext);
       storageUploadStep.execute.mockResolvedValue({} as ProcessingContext);
       ingestionFinalizationStep.execute.mockResolvedValue({} as ProcessingContext);
@@ -134,22 +133,22 @@ describe('PipelineService', () => {
       expect(result.error).toBeUndefined();
     });
 
-         it('should create correct processing context from DriveItem', async () => {
-       await service.processFile(mockDriveItem);
+    it('should create correct processing context from DriveItem', async () => {
+      await service.processFile(mockDriveItem);
 
-       const contextArg = tokenValidationStep.execute.mock.calls[0][0];
-       expect(contextArg.fileId).toBe('test-file-id-123');
-       expect(contextArg.fileName).toBe('test-document.pdf');
-       expect(contextArg.fileSize).toBe(1024000);
-       expect(contextArg.siteUrl).toBe('test-site-id-789');
-       expect(contextArg.libraryName).toBe('test-drive-id-456');
-       expect(contextArg.downloadUrl).toBe('https://tenant.sharepoint.com/sites/test/document.pdf');
-       expect(contextArg.correlationId).toBeDefined();
-       expect(contextArg.startTime).toBeInstanceOf(Date);
-       
-       expect(contextArg.metadata).toBeDefined();
-       expect(typeof contextArg.metadata).toBe('object');
-     });
+      const contextArg = tokenValidationStep.execute.mock.calls[0][0];
+      expect(contextArg.fileId).toBe('test-file-id-123');
+      expect(contextArg.fileName).toBe('test-document.pdf');
+      expect(contextArg.fileSize).toBe(1024000);
+      expect(contextArg.siteUrl).toBe('test-site-id-789');
+      expect(contextArg.libraryName).toBe('test-drive-id-456');
+      expect(contextArg.downloadUrl).toBe('https://tenant.sharepoint.com/sites/test/document.pdf');
+      expect(contextArg.correlationId).toBeDefined();
+      expect(contextArg.startTime).toBeInstanceOf(Date);
+
+      expect(contextArg.metadata).toBeDefined();
+      expect(typeof contextArg.metadata).toBe('object');
+    });
 
     it('should execute all pipeline steps in correct order', async () => {
       await service.processFile(mockDriveItem);
@@ -162,13 +161,12 @@ describe('PipelineService', () => {
 
       // Verify order of execution
       const callOrder = [
-      
         contentFetchingStep.execute.mock.invocationCallOrder[0],
         contentRegistrationStep.execute.mock.invocationCallOrder[0],
         storageUploadStep.execute.mock.invocationCallOrder[0],
         ingestionFinalizationStep.execute.mock.invocationCallOrder[0],
       ];
-      
+
       expect(callOrder).toEqual([...callOrder].sort((a, b) => a - b));
     });
 
@@ -179,20 +177,18 @@ describe('PipelineService', () => {
       expect(metricsService.recordFileSize).toHaveBeenCalledWith(1024000);
     });
 
-         it('should handle step failure and return error result', async () => {
-       const stepError = new Error('Step failed');
-       tokenValidationStep.execute.mockImplementation(() => 
-         new Promise((_, reject) => setTimeout(() => reject(stepError), 1))
-       );
+    it('should handle step failure and return error result', async () => {
+      const stepError = new Error('Step failed');
+      tokenValidationStep.execute.mockImplementation(() => new Promise((_, reject) => setTimeout(() => reject(stepError), 1)));
 
-       const result: PipelineResult = await service.processFile(mockDriveItem);
+      const result: PipelineResult = await service.processFile(mockDriveItem);
 
-       expect(result.success).toBe(false);
-       expect(result.error).toBe(stepError);
-       expect(result.completedSteps).toHaveLength(0);
-       expect(result.totalDuration).toBeGreaterThan(0);
-       expect(metricsService.recordPipelineCompleted).toHaveBeenCalledWith(false, expect.any(Number));
-     });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(stepError);
+      expect(result.completedSteps).toHaveLength(0);
+      expect(result.totalDuration).toBeGreaterThan(0);
+      expect(metricsService.recordPipelineCompleted).toHaveBeenCalledWith(false, expect.any(Number));
+    });
 
     it('should stop execution and cleanup on step failure', async () => {
       const stepError = new Error('Content fetching failed');
@@ -208,15 +204,15 @@ describe('PipelineService', () => {
       expect(contentRegistrationStep.execute).not.toHaveBeenCalled();
       expect(storageUploadStep.execute).not.toHaveBeenCalled();
       expect(ingestionFinalizationStep.execute).not.toHaveBeenCalled();
-      
+
       // Failed step should have cleanup called
       expect(contentFetchingStep.cleanup).toHaveBeenCalledTimes(1);
     });
 
     it('should handle step timeout correctly', async () => {
       // Mock a step that takes longer than timeout
-      contentFetchingStep.execute.mockImplementation(() => 
-        new Promise(resolve => setTimeout(resolve, 35000)) // 35 seconds > 30 second timeout
+      contentFetchingStep.execute.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 60000)), // 35 seconds > 30 second timeout
       );
 
       const result = await service.processFile(mockDriveItem);
@@ -225,21 +221,21 @@ describe('PipelineService', () => {
       expect(result.error?.message).toContain('timed out after');
     }, 40000);
 
-         it('should handle DriveItem with missing optional fields', async () => {
-       const minimalDriveItem: DriveItem = {
-         id: 'test-id',
-         name: 'test.txt',
-         webUrl: 'https://test.com/file.txt',
-         listItem: {
-           fields: {},
-           lastModifiedDateTime: '2024-01-01T00:00:00Z',
-           createdDateTime: '2024-01-01T00:00:00Z',
-         },
-         parentReference: {
-           driveId: '',
-           siteId: '',
-         },
-       } as DriveItem;
+    it('should handle DriveItem with missing optional fields', async () => {
+      const minimalDriveItem: DriveItem = {
+        id: 'test-id',
+        name: 'test.txt',
+        webUrl: 'https://test.com/file.txt',
+        listItem: {
+          fields: {},
+          lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          createdDateTime: '2024-01-01T00:00:00Z',
+        },
+        parentReference: {
+          driveId: '',
+          siteId: '',
+        },
+      } as DriveItem;
 
       const result = await service.processFile(minimalDriveItem);
 
@@ -249,20 +245,20 @@ describe('PipelineService', () => {
       expect(result.context.libraryName).toBe('');
     });
 
-         it('should handle cleanup errors gracefully', async () => {
-       const stepError = new Error('Step failed');
-       const cleanupError = new Error('Cleanup failed');
-      
-       // Make content fetching step have cleanup method that fails
-       contentFetchingStep.execute.mockRejectedValue(stepError);
-       contentFetchingStep.cleanup!.mockRejectedValue(cleanupError);
+    it('should handle cleanup errors gracefully', async () => {
+      const stepError = new Error('Step failed');
+      const cleanupError = new Error('Cleanup failed');
 
-       const result = await service.processFile(mockDriveItem);
+      // Make content fetching step have cleanup method that fails
+      contentFetchingStep.execute.mockRejectedValue(stepError);
+      contentFetchingStep.cleanup.mockRejectedValue(cleanupError);
 
-       expect(result.success).toBe(false);
-       expect(result.error).toBe(stepError); // Original error should be preserved
-       expect(contentFetchingStep.cleanup).toHaveBeenCalledTimes(1);
-     });
+      const result = await service.processFile(mockDriveItem);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(stepError); // Original error should be preserved
+      expect(contentFetchingStep.cleanup).toHaveBeenCalledTimes(1);
+    });
 
     it('should perform final cleanup on successful completion', async () => {
       const contextWithBuffer = {} as ProcessingContext;
@@ -290,7 +286,7 @@ describe('PipelineService', () => {
   describe('step timeout configuration', () => {
     it('should use default timeout when config value is not provided', async () => {
       configService.get.mockReturnValue(undefined);
-      
+
       // Create a new service instance to test constructor behavior
       const moduleWithoutTimeout: TestingModule = await Test.createTestingModule({
         providers: [
@@ -311,7 +307,7 @@ describe('PipelineService', () => {
 
     it('should use custom timeout when config value is provided', async () => {
       configService.get.mockReturnValue(60); // 60 seconds
-      
+
       const moduleWithTimeout: TestingModule = await Test.createTestingModule({
         providers: [
           PipelineService,

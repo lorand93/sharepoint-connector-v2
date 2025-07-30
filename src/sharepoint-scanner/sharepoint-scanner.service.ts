@@ -19,8 +19,7 @@ export class SharepointScannerService {
     private readonly queueService: QueueService,
     private readonly uniqueApiService: UniqueApiService,
     private readonly metricsService: MetricsService,
-  ) {
-  }
+  ) {}
 
   async scanForWork(): Promise<void> {
     const scanStartTime = Date.now();
@@ -69,19 +68,12 @@ export class SharepointScannerService {
       }));
 
       const uniqueToken = await this.authService.getUniqueApiToken();
-      const diffResult = await this.uniqueApiService.performFileDiff(
-        fileDiffItems,
-        uniqueToken,
-      );
+      const diffResult = await this.uniqueApiService.performFileDiff(fileDiffItems, uniqueToken);
 
       this.logger.debug(`File diff complete - ${diffResult.newAndUpdatedFiles.length} files need processing,
       ${diffResult.deletedFiles.length} deleted`);
 
-      this.metricsService.recordFileDiffResults(
-        diffResult.newAndUpdatedFiles.length,
-        diffResult.deletedFiles.length,
-        diffResult.movedFiles.length,
-      );
+      this.metricsService.recordFileDiffResults(diffResult.newAndUpdatedFiles.length, diffResult.deletedFiles.length, diffResult.movedFiles.length);
 
       // TODO handle deleted files. Step to be implemented after we can test it (after we complete implementing file processing)
       const results = await this.loadJobsInQueue(diffResult, allFiles, totalFilesFound);
@@ -98,29 +90,21 @@ export class SharepointScannerService {
 
   private async loadJobsInQueue(diffResult: FileDiffResponse, allFiles: DriveItem[], totalFilesFound: number) {
     const newFileKeys = new Set(diffResult.newAndUpdatedFiles);
-    const filesToProcess = allFiles.filter((file) =>
-      newFileKeys.has(`sharepoint_file_${file.id}`),
-    );
+    const filesToProcess = allFiles.filter((file) => newFileKeys.has(`sharepoint_file_${file.id}`));
 
     this.logger.log(`Scan complete. ${filesToProcess.length + 1} files will be added to processing queue 
       out of ${totalFilesFound} total files scanned.`);
 
-    const jobPromises = filesToProcess.map(file =>
-      this.queueService.addFileProcessingJob(file),
-    );
+    const jobPromises = filesToProcess.map((file) => this.queueService.addFileProcessingJob(file));
 
     const results = await Promise.allSettled(jobPromises);
 
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         const file = filesToProcess[index];
-        this.logger.error(
-          `Failed to queue file ${file.name} (${file.id}):`,
-          result.reason,
-        );
+        this.logger.error(`Failed to queue file ${file.name} (${file.id}):`, result.reason);
       }
     });
     return results;
   }
 }
-

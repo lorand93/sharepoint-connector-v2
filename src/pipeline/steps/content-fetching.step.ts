@@ -35,7 +35,9 @@ export class ContentFetchingStep implements IPipelineStep {
       context.fileSize = contentBuffer.length;
 
       this.validateMimeType(context.metadata.mimeType, context.correlationId);
-      this.logger.debug(`[${context.correlationId}] Content fetching completed for file: ${context.fileName} (${Math.round(contentBuffer.length / 1024 / 1024)}MB)`);
+      this.logger.debug(
+        `[${context.correlationId}] Content fetching completed for file: ${context.fileName} (${Math.round(contentBuffer.length / 1024 / 1024)}MB)`,
+      );
 
       const stepDuration = Date.now() - stepStartTime;
       this.metricsService.recordPipelineStepDuration(this.stepName, stepDuration / 1000);

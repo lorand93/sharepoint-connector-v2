@@ -185,10 +185,7 @@ describe('SharepointScannerService', () => {
         },
       ];
 
-      expect(uniqueApiService.performFileDiff).toHaveBeenCalledWith(
-        expectedFileDiffItems,
-        'unique-token-123'
-      );
+      expect(uniqueApiService.performFileDiff).toHaveBeenCalledWith(expectedFileDiffItems, 'unique-token-123');
     });
 
     it('should record file diff results metrics', async () => {
@@ -220,9 +217,7 @@ describe('SharepointScannerService', () => {
 
     it('should handle site scanning failures gracefully', async () => {
       const siteError = new Error('SharePoint API error');
-      sharepointApiService.findAllSyncableFilesForSite
-        .mockResolvedValueOnce([mockDriveItem])
-        .mockRejectedValueOnce(siteError);
+      sharepointApiService.findAllSyncableFilesForSite.mockResolvedValueOnce([mockDriveItem]).mockRejectedValueOnce(siteError);
 
       await service.scanForWork();
 
@@ -275,11 +270,9 @@ describe('SharepointScannerService', () => {
     });
 
     it('should process files with different diff results', async () => {
-      sharepointApiService.findAllSyncableFilesForSite
-      sharepointApiService.findAllSyncableFilesForSite
-        .mockResolvedValueOnce([mockDriveItem])
-        .mockResolvedValueOnce([]);
-      
+      sharepointApiService.findAllSyncableFilesForSite;
+      sharepointApiService.findAllSyncableFilesForSite.mockResolvedValueOnce([mockDriveItem]).mockResolvedValueOnce([]);
+
       const complexDiffResponse: FileDiffResponse = {
         newAndUpdatedFiles: ['sharepoint_file_file-1'],
         deletedFiles: ['sharepoint_file_file-deleted'],
@@ -295,9 +288,7 @@ describe('SharepointScannerService', () => {
     });
 
     it('should handle multiple files from multiple sites', async () => {
-      sharepointApiService.findAllSyncableFilesForSite
-        .mockResolvedValueOnce([mockDriveItem])
-        .mockResolvedValueOnce([mockDriveItem2]);
+      sharepointApiService.findAllSyncableFilesForSite.mockResolvedValueOnce([mockDriveItem]).mockResolvedValueOnce([mockDriveItem2]);
 
       const multiFileDiffResponse: FileDiffResponse = {
         newAndUpdatedFiles: ['sharepoint_file_file-1', 'sharepoint_file_file-2'],
@@ -327,10 +318,7 @@ describe('SharepointScannerService', () => {
         key: 'sharepoint_file_file-1',
       };
 
-      expect(uniqueApiService.performFileDiff).toHaveBeenCalledWith(
-        [expectedFileDiffItem, expectedFileDiffItem],
-        'unique-token-123'
-      );
+      expect(uniqueApiService.performFileDiff).toHaveBeenCalledWith([expectedFileDiffItem, expectedFileDiffItem], 'unique-token-123');
     });
 
     it('should calculate scan duration correctly', async () => {
@@ -338,9 +326,7 @@ describe('SharepointScannerService', () => {
       await service.scanForWork();
       const endTime = Date.now();
 
-      expect(metricsService.recordScanCompleted).toHaveBeenCalledWith(
-        expect.any(Number)
-      );
+      expect(metricsService.recordScanCompleted).toHaveBeenCalledWith(expect.any(Number));
 
       const recordedDuration = metricsService.recordScanCompleted.mock.calls[0][0];
       expect(recordedDuration).toBeGreaterThanOrEqual(0);
@@ -354,15 +340,15 @@ describe('SharepointScannerService', () => {
       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem]);
     });
 
-         it('should handle files without lastModifiedDateTime', async () => {
-       const fileWithoutTimestamp = {
-         ...mockDriveItem,
-         listItem: {
-           ...mockDriveItem.listItem,
-           lastModifiedDateTime: undefined as any,
-         },
-       } as DriveItem;
-       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([fileWithoutTimestamp]);
+    it('should handle files without lastModifiedDateTime', async () => {
+      const fileWithoutTimestamp = {
+        ...mockDriveItem,
+        listItem: {
+          ...mockDriveItem.listItem,
+          lastModifiedDateTime: undefined as any,
+        },
+      } as DriveItem;
+      sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([fileWithoutTimestamp]);
       authService.getUniqueApiToken.mockResolvedValue('token');
       uniqueApiService.performFileDiff.mockResolvedValue(mockFileDiffResponse);
 
@@ -380,10 +366,8 @@ describe('SharepointScannerService', () => {
         movedFiles: [],
       });
 
-      queueService.addFileProcessingJob
-      queueService.addFileProcessingJob
-        .mockResolvedValueOnce()
-        .mockRejectedValueOnce(new Error('Queue failed'));
+      queueService.addFileProcessingJob;
+      queueService.addFileProcessingJob.mockResolvedValueOnce().mockRejectedValueOnce(new Error('Queue failed'));
 
       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem, mockDriveItem2]);
       sharepointApiService.findAllSyncableFilesForSite.mockResolvedValue([mockDriveItem, mockDriveItem2]);

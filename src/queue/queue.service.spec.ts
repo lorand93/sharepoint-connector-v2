@@ -104,13 +104,13 @@ describe('QueueService', () => {
         id: 'minimal-file',
         name: 'minimal.txt',
         webUrl: 'https://test.com/minimal.txt',
-                 listItem: {
-           fields: {
-             id: 'minimal-field-id',
-           },
-           lastModifiedDateTime: '2024-01-01T00:00:00Z',
-           createdDateTime: '2024-01-01T00:00:00Z',
-         },
+        listItem: {
+          fields: {
+            id: 'minimal-field-id',
+          },
+          lastModifiedDateTime: '2024-01-01T00:00:00Z',
+          createdDateTime: '2024-01-01T00:00:00Z',
+        },
         parentReference: {
           driveId: 'drive-1',
           siteId: 'site-1',
@@ -129,14 +129,14 @@ describe('QueueService', () => {
 
       await service.addFileProcessingJob(mockDriveItem);
 
-             const [, , options] = mockQueue.add.mock.calls[0];
-       expect(options?.attempts).toBe(3);
-       expect(options?.backoff).toEqual({
-         type: 'exponential',
-         delay: 1000,
-       });
-       expect(options?.removeOnComplete).toBe(true);
-       expect(options?.removeOnFail).toBe(true);
+      const [, , options] = mockQueue.add.mock.calls[0];
+      expect(options?.attempts).toBe(3);
+      expect(options?.backoff).toEqual({
+        type: 'exponential',
+        delay: 1000,
+      });
+      expect(options?.removeOnComplete).toBe(true);
+      expect(options?.removeOnFail).toBe(true);
     });
 
     it('should handle multiple concurrent job additions', async () => {
@@ -148,17 +148,12 @@ describe('QueueService', () => {
         { ...mockDriveItem, id: 'file-3', name: 'file3.pdf' },
       ];
 
-      const promises = files.map(file => service.addFileProcessingJob(file));
+      const promises = files.map((file) => service.addFileProcessingJob(file));
       await Promise.all(promises);
 
       expect(mockQueue.add).toHaveBeenCalledTimes(3);
       files.forEach((file, index) => {
-        expect(mockQueue.add).toHaveBeenNthCalledWith(
-          index + 1,
-          'process-file',
-          file,
-          expect.any(Object)
-        );
+        expect(mockQueue.add).toHaveBeenNthCalledWith(index + 1, 'process-file', file, expect.any(Object));
       });
     });
   });
@@ -195,9 +190,7 @@ describe('QueueService', () => {
       mockQueue.add.mockResolvedValue({} as any);
       mockQueue.close.mockResolvedValue(undefined);
 
-      const jobPromises = Array.from({ length: 10 }, (_, i) =>
-        service.addFileProcessingJob({ ...mockDriveItem, id: `file-${i}` })
-      );
+      const jobPromises = Array.from({ length: 10 }, (_, i) => service.addFileProcessingJob({ ...mockDriveItem, id: `file-${i}` }));
 
       await Promise.all(jobPromises);
       service.onModuleDestroy();
@@ -211,8 +204,7 @@ describe('QueueService', () => {
       timeoutError.name = 'TimeoutError';
       mockQueue.add.mockRejectedValue(timeoutError);
 
-      await expect(service.addFileProcessingJob(mockDriveItem))
-        .rejects.toThrow('Network timeout');
+      await expect(service.addFileProcessingJob(mockDriveItem)).rejects.toThrow('Network timeout');
     });
 
     it('should handle large DriveItem objects', async () => {
@@ -220,12 +212,11 @@ describe('QueueService', () => {
         ...mockDriveItem,
         listItem: {
           ...mockDriveItem.listItem,
-                     fields: {
-             id: 'large-file-id',
-             ...mockDriveItem.listItem.fields,
-             ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` }))
-               .reduce((acc, obj) => ({ ...acc, ...obj }), {}),
-           },
+          fields: {
+            id: 'large-file-id',
+            ...mockDriveItem.listItem.fields,
+            ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` })).reduce((acc, obj) => ({ ...acc, ...obj }), {}),
+          },
         },
       };
 
@@ -243,8 +234,7 @@ describe('QueueService', () => {
       connectionError.name = 'ConnectionError';
       mockQueue.add.mockRejectedValue(connectionError);
 
-      await expect(service.addFileProcessingJob(mockDriveItem))
-        .rejects.toThrow('Redis connection failed');
+      await expect(service.addFileProcessingJob(mockDriveItem)).rejects.toThrow('Redis connection failed');
     });
 
     it('should handle queue full errors', async () => {
@@ -252,21 +242,19 @@ describe('QueueService', () => {
       queueFullError.name = 'QueueFullError';
       mockQueue.add.mockRejectedValue(queueFullError);
 
-      await expect(service.addFileProcessingJob(mockDriveItem))
-        .rejects.toThrow('Queue capacity exceeded');
+      await expect(service.addFileProcessingJob(mockDriveItem)).rejects.toThrow('Queue capacity exceeded');
     });
 
     it('should handle serialization errors for complex objects', async () => {
-             const circularReference = { ...mockDriveItem };
-       if (circularReference.listItem.fields) {
-         (circularReference.listItem.fields as any).self = circularReference;
-       }
+      const circularReference = { ...mockDriveItem };
+      if (circularReference.listItem.fields) {
+        (circularReference.listItem.fields as any).self = circularReference;
+      }
 
       const serializationError = new Error('Converting circular structure to JSON');
       mockQueue.add.mockRejectedValue(serializationError);
 
-      await expect(service.addFileProcessingJob(circularReference))
-        .rejects.toThrow('Converting circular structure to JSON');
+      await expect(service.addFileProcessingJob(circularReference)).rejects.toThrow('Converting circular structure to JSON');
     });
   });
 });

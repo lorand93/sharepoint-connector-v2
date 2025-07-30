@@ -75,14 +75,8 @@ describe('ContentFetchingStep', () => {
 
       expect(result.contentBuffer).toBe(mockContentBuffer);
       expect(result.fileSize).toBe(mockContentBuffer.length);
-      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith(
-        'test-drive-id',
-        'test-file-id'
-      );
-      expect(metricsService.recordPipelineStepDuration).toHaveBeenCalledWith(
-        PipelineStep.CONTENT_FETCHING,
-        expect.any(Number)
-      );
+      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith('test-drive-id', 'test-file-id');
+      expect(metricsService.recordPipelineStepDuration).toHaveBeenCalledWith(PipelineStep.CONTENT_FETCHING, expect.any(Number));
     });
 
     it('should throw error when drive ID is missing', async () => {
@@ -91,9 +85,7 @@ describe('ContentFetchingStep', () => {
         metadata: { mimeType: 'application/pdf' }, // No driveId
       };
 
-      await expect(step.execute(contextWithoutDriveId)).rejects.toThrow(
-        'Drive ID not found in file metadata'
-      );
+      await expect(step.execute(contextWithoutDriveId)).rejects.toThrow('Drive ID not found in file metadata');
     });
 
     it('should extract drive ID from parentReference', async () => {
@@ -110,10 +102,7 @@ describe('ContentFetchingStep', () => {
 
       await step.execute(contextWithParentRef);
 
-      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith(
-        'parent-drive-id',
-        'test-file-id'
-      );
+      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith('parent-drive-id', 'test-file-id');
     });
 
     it('should extract drive ID from listItem fields', async () => {
@@ -130,10 +119,7 @@ describe('ContentFetchingStep', () => {
 
       await step.execute(contextWithListItem);
 
-      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith(
-        'listitem-drive-id',
-        'test-file-id'
-      );
+      expect(sharepointApiService.downloadFileContent).toHaveBeenCalledWith('listitem-drive-id', 'test-file-id');
     });
 
     it('should validate MIME type when restrictions are configured', async () => {
@@ -147,18 +133,14 @@ describe('ContentFetchingStep', () => {
       sharepointApiService.downloadFileContent.mockResolvedValue(mockContentBuffer);
       configService.get.mockReturnValue(['text/plain']); // PDF not allowed
 
-      await expect(step.execute({ ...mockContext })).rejects.toThrow(
-        'MIME type application/pdf is not allowed. Allowed types: text/plain'
-      );
+      await expect(step.execute({ ...mockContext })).rejects.toThrow('MIME type application/pdf is not allowed. Allowed types: text/plain');
     });
 
     it('should handle SharePoint API errors', async () => {
       const apiError = new Error('SharePoint API failed');
       sharepointApiService.downloadFileContent.mockRejectedValue(apiError);
 
-      await expect(step.execute({ ...mockContext })).rejects.toThrow(
-        'SharePoint API failed'
-      );
+      await expect(step.execute({ ...mockContext })).rejects.toThrow('SharePoint API failed');
     });
 
     it('should preserve original context properties', async () => {
@@ -197,9 +179,7 @@ describe('ContentFetchingStep', () => {
         },
       };
 
-      await expect(step.execute(contextWithNoDriveId)).rejects.toThrow(
-        'Drive ID not found in file metadata'
-      );
+      await expect(step.execute(contextWithNoDriveId)).rejects.toThrow('Drive ID not found in file metadata');
     });
 
     it('should skip MIME type validation when no restrictions configured', async () => {

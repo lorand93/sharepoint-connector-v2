@@ -98,7 +98,7 @@ export class AuthService {
         throw new Error('Invalid token response: missing access_token');
       }
 
-      const expiresAt = now + (tokenData.expires_in * 1000);
+      const expiresAt = now + tokenData.expires_in * 1000;
       this.uniqueApiTokenCache = {
         accessToken: tokenData.access_token,
         expiresOn: expiresAt,

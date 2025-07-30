@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SharepointScannerService } from '../sharepoint-scanner/sharepoint-scanner.service';
 import { DistributedLockService } from '../common/lock/distributed-lock.service';
 
 @Injectable()
-export class SchedulerService {
+export class SchedulerService implements OnModuleDestroy {
   private readonly logger = new Logger(SchedulerService.name);
   private readonly lockKey = 'sharepoint:scan:lock';
   private readonly lockTTL = 900; // 15 minutes TTL (same as cron interval)
@@ -41,14 +41,18 @@ export class SchedulerService {
     this.startLockExtension();
 
     try {
+
       this.logger.log('Lock acquired. Starting SharePoint scan...');
       await this.sharepointScanner.scanForWork();
       this.logger.log('SharePoint scan completed successfully.');
+
     } catch (error) {
       this.logger.error('An unexpected error occurred during the scheduled scan.', error.stack);
     } finally {
       this.stopLockExtension();
-      await this.distributedLockService.releaseLock(this.lockKey);
+      if (this.currentLockValue) {
+        await this.distributedLockService.releaseLock(this.lockKey, this.currentLockValue);
+      }
       this.currentLockValue = undefined;
     }
   }
@@ -63,11 +67,7 @@ export class SchedulerService {
 
     this.lockExtensionTimer = setInterval(async () => {
       if (this.currentLockValue) {
-        const extended = await this.distributedLockService.extendLock(
-          this.lockKey,
-          this.lockTTL,
-          this.currentLockValue
-        );
+        const extended = await this.distributedLockService.extendLock(this.lockKey, this.lockTTL, this.currentLockValue);
 
         if (extended) {
           this.logger.debug(`Lock extended successfully for scan operation`);
@@ -88,12 +88,30 @@ export class SchedulerService {
     }
   }
 
+  /**
+   * Graceful shutdown handler - releases locks before app termination
+   */
   async onModuleDestroy() {
-    this.stopLockExtension();
+    this.logger.log('SchedulerService shutting down - cleaning up resources...');
 
-    if (this.currentLockValue) {
-      await this.distributedLockService.releaseLock(this.lockKey);
-      this.currentLockValue = undefined;
+    try {
+      // Stop lock extension timer
+      this.stopLockExtension();
+
+      // Release any active locks
+      if (this.currentLockValue) {
+        const released = await this.distributedLockService.releaseLock(this.lockKey, this.currentLockValue);
+        if (released) {
+          this.logger.log(`Released active lock: ${this.lockKey}`);
+        } else {
+          this.logger.warn(`Failed to release lock during shutdown: ${this.lockKey}`);
+        }
+        this.currentLockValue = undefined;
+      }
+
+      this.logger.log('SchedulerService cleanup completed');
+    } catch (error) {
+      this.logger.error('Error during SchedulerService cleanup:', error);
     }
   }
 }

@@ -4,7 +4,6 @@ import { SchedulerService } from './scheduler.service';
 import { SharepointScannerService } from '../sharepoint-scanner/sharepoint-scanner.service';
 import { DistributedLockService } from '../common/lock/distributed-lock.service';
 
-
 describe('SchedulerService', () => {
   let service: SchedulerService;
   let sharepointScannerService: jest.Mocked<SharepointScannerService>;
@@ -69,7 +68,7 @@ describe('SchedulerService', () => {
     beforeEach(() => {
       sharepointScannerService.scanForWork.mockResolvedValue();
       distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
-      distributedLockService.releaseLock.mockResolvedValue();
+      distributedLockService.releaseLock.mockResolvedValue(true);
     });
 
     it('should successfully run a scheduled scan', async () => {
@@ -77,20 +76,22 @@ describe('SchedulerService', () => {
 
       expect(distributedLockService.acquireLock).toHaveBeenCalledWith(
         'sharepoint:scan:lock',
-        900 // TTL in seconds
+        900, // TTL in seconds
       );
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
-      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock', 'test-lock-123');
     });
 
     it('should extend lock periodically during long-running scans', async () => {
       jest.useFakeTimers();
-      
+
       // Mock a long-running scan that resolves after we advance timers
       let scanResolve: () => void;
-      const scanPromise = new Promise<void>(resolve => { scanResolve = resolve; });
+      const scanPromise = new Promise<void>((resolve) => {
+        scanResolve = resolve;
+      });
       sharepointScannerService.scanForWork.mockReturnValue(scanPromise);
-      
+
       distributedLockService.extendLock.mockResolvedValue(true);
 
       // Start the scan (don't await it yet)
@@ -107,7 +108,7 @@ describe('SchedulerService', () => {
       expect(distributedLockService.extendLock).toHaveBeenCalledWith(
         'sharepoint:scan:lock',
         900, // TTL
-        'test-lock-123' // Lock value
+        'test-lock-123', // Lock value
       );
 
       // Fast-forward another 10 minutes to trigger second extension
@@ -121,20 +122,15 @@ describe('SchedulerService', () => {
       await Promise.resolve();
       await runPromise;
 
-      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
-      
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock', 'test-lock-123');
+
       jest.useRealTimers();
     });
 
     it('should prevent concurrent scans when a scan is already running', async () => {
-      distributedLockService.acquireLock
-        .mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' })
-        .mockResolvedValueOnce({ acquired: false });
+      distributedLockService.acquireLock.mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' }).mockResolvedValueOnce({ acquired: false });
 
-      await Promise.all([
-        service.runScheduledScan(),
-        service.runScheduledScan()
-      ]);
+      await Promise.all([service.runScheduledScan(), service.runScheduledScan()]);
 
       expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(2);
       expect(sharepointScannerService.scanForWork).toHaveBeenCalledTimes(1);
@@ -173,7 +169,7 @@ describe('SchedulerService', () => {
 
     it('should log warning when scan is skipped due to concurrent execution', async () => {
       const warnSpy = jest.spyOn(Logger.prototype, 'warn');
-      
+
       // Scan fails to acquire lock
       distributedLockService.acquireLock.mockResolvedValueOnce({ acquired: false });
 
@@ -192,10 +188,7 @@ describe('SchedulerService', () => {
 
       await service.runScheduledScan();
 
-      expect(errorSpy).toHaveBeenCalledWith(
-        'An unexpected error occurred during the scheduled scan.',
-        scanError.stack
-      );
+      expect(errorSpy).toHaveBeenCalledWith('An unexpected error occurred during the scheduled scan.', scanError.stack);
     });
 
     it('should reset running state even if scan throws synchronous error', async () => {
@@ -215,19 +208,12 @@ describe('SchedulerService', () => {
 
     it('should handle multiple concurrent scan attempts correctly', async () => {
       const warnSpy = jest.spyOn(Logger.prototype, 'warn');
-      
+
       // First lock succeeds, subsequent locks fail
-      distributedLockService.acquireLock
-        .mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' })
-        .mockResolvedValue({ acquired: false }); // All subsequent calls fail
+      distributedLockService.acquireLock.mockResolvedValueOnce({ acquired: true, lockValue: 'test-lock-123' }).mockResolvedValue({ acquired: false }); // All subsequent calls fail
 
       // Try to start multiple concurrent scans
-      await Promise.all([
-        service.runScheduledScan(),
-        service.runScheduledScan(),
-        service.runScheduledScan(),
-        service.runScheduledScan(),
-      ]);
+      await Promise.all([service.runScheduledScan(), service.runScheduledScan(), service.runScheduledScan(), service.runScheduledScan()]);
 
       // Only first should succeed, others should be skipped
       expect(distributedLockService.acquireLock).toHaveBeenCalledTimes(4);
@@ -275,7 +261,7 @@ describe('SchedulerService', () => {
   describe('error handling edge cases', () => {
     beforeEach(() => {
       distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
-      distributedLockService.releaseLock.mockResolvedValue();
+      distributedLockService.releaseLock.mockResolvedValue(true);
     });
 
     it('should handle scanner service being undefined or null', async () => {
@@ -297,8 +283,8 @@ describe('SchedulerService', () => {
       const serviceWithNullScanner = moduleWithNullScanner.get<SchedulerService>(SchedulerService);
       jest.spyOn(Logger.prototype, 'error').mockImplementation();
 
-             // This should handle the null scanner gracefully
-       await expect(serviceWithNullScanner.runScheduledScan()).resolves.toBeUndefined();
+      // This should handle the null scanner gracefully
+      await expect(serviceWithNullScanner.runScheduledScan()).resolves.toBeUndefined();
     });
 
     it('should handle scanner service method throwing TypeError', async () => {
@@ -326,7 +312,7 @@ describe('SchedulerService', () => {
     beforeEach(() => {
       // Ensure the mock is set up for these tests
       distributedLockService.acquireLock.mockResolvedValue({ acquired: true, lockValue: 'test-lock-123' });
-      distributedLockService.releaseLock.mockResolvedValue();
+      distributedLockService.releaseLock.mockResolvedValue(true);
     });
 
     it('should not accumulate state between multiple scans', async () => {
@@ -354,10 +340,10 @@ describe('SchedulerService', () => {
   describe('lifecycle management', () => {
     it('should clean up lock extension timer and release locks on module destroy', async () => {
       jest.useFakeTimers();
-      
+
       // Start a scan that will hold a lock
-      sharepointScannerService.scanForWork.mockImplementation(() => 
-        new Promise(() => {}) // Never resolves - simulates stuck scan
+      sharepointScannerService.scanForWork.mockImplementation(
+        () => new Promise(() => {}), // Never resolves - simulates stuck scan
       );
 
       // Start the scan (don't await it)
@@ -371,7 +357,7 @@ describe('SchedulerService', () => {
       await service.onModuleDestroy();
 
       // Should have released the lock
-      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock');
+      expect(distributedLockService.releaseLock).toHaveBeenCalledWith('sharepoint:scan:lock', 'test-lock-123');
 
       // Clean up
       jest.runAllTimers();
@@ -380,7 +366,7 @@ describe('SchedulerService', () => {
 
     it('should handle module destroy when no scan is running', async () => {
       await service.onModuleDestroy();
-      
+
       // Should not try to release any locks
       expect(distributedLockService.releaseLock).not.toHaveBeenCalled();
     });

@@ -25,7 +25,7 @@ export class IngestionFinalizationStep implements IPipelineStep {
     try {
       this.logger.debug(`[${context.correlationId}] Starting ingestion finalization for file: ${context.fileName}`);
 
-      const uniqueToken = await this.authService.getUniqueApiToken()
+      const uniqueToken = await this.authService.getUniqueApiToken();
 
       const registrationResponse = context.metadata.registrationResponse;
       if (!registrationResponse) {
