@@ -25,36 +25,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    environment:
-      # Application Configuration
-      - PORT=3000
-      - NODE_ENV=development
-      
-      # Redis Configuration
-      - REDIS_URL=redis://redis:6379
-      - PROCESSING_CONCURRENCY=4
-      - MAX_RETRIES=3
-      
-      # Pipeline Configuration
-      - STEP_TIMEOUT_SECONDS=30
-      - MAX_FILE_SIZE_BYTES=209715200
-      
-      # SharePoint Configuration
-      - GRAPH_CLIENT_ID=f7c31100-7e07-49a4-add4-fda344f1718e
-      - GRAPH_CLIENT_SECRET=JlY8Q~1rY64YoL1rKhbOJzDGYaCdsHokIxsX8bXk
-      - GRAPH_TENANT_ID=0bb1c442-98ef-4e91-89b6-0646d5795c5d
-      - SHAREPOINT_SITES=a4b8e781-4fac-47d7-8cac-2b9151f9a878
-      - SHAREPOINT_SYNC_COLUMN_NAME=FinanceGPTKnowledge
-      - ALLOWED_MIME_TYPES=application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-      
-      # Unique API Configuration
-      - UNIQUE_INGESTION_URL=https://gateway.qa.unique.app/ingestion-gen2/v1/content
-      - UNIQUE_INGESTION_URL_GRAPHQL=https://gateway.qa.unique.app/ingestion-gen2/graphql
-      - UNIQUE_SCOPE_ID=scope_l41y7w79apiieyqy2i2i7u7x
-      - ZITADEL_OAUTH_TOKEN_URL=https://id.qa.unique.app/oauth/v2/token
-      - ZITADEL_PROJECT_ID=225317577440629855
-      - ZITADEL_CLIENT_ID=lorand
-      - ZITADEL_CLIENT_SECRET=BHGajzhKWj6WxQfWAMJleofC2Cv57PbVsFzBKTWtbLSUbLKpNczdHSzQamZVNnTP
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
