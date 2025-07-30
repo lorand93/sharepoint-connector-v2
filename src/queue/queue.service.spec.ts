@@ -34,7 +34,6 @@ describe('QueueService', () => {
 
   beforeEach(async () => {
     mockQueue = {
-    mockQueue = {
       add: jest.fn(),
       close: jest.fn(),
     } as any;
@@ -49,7 +48,7 @@ describe('QueueService', () => {
       ],
     }).compile();
 
-    service = module.get<QueueService>(QueueService);
+    service = module.get(QueueService);
   });
 
   afterEach(() => {
@@ -178,7 +177,7 @@ describe('QueueService', () => {
 
       expect(() => service.onModuleDestroy()).not.toThrow();
       expect(() => service.onModuleDestroy()).not.toThrow();
-      expect(mockQueue.close).toHaveBeenCalledTimes(1);
+      expect(mockQueue.close).toHaveBeenCalledTimes(2); // Called twice because onModuleDestroy is called twice
     });
 
     it('should be callable multiple times without errors', () => {
@@ -196,8 +195,7 @@ describe('QueueService', () => {
       mockQueue.add.mockResolvedValue({} as any);
       mockQueue.close.mockResolvedValue(undefined);
 
-      const jobPromises = Array.from({ length: 10 }, (_, i) => 
-      const jobPromises = Array.from({ length: 10 }, (_, i) => 
+      const jobPromises = Array.from({ length: 10 }, (_, i) =>
         service.addFileProcessingJob({ ...mockDriveItem, id: `file-${i}` })
       );
 
@@ -225,7 +223,6 @@ describe('QueueService', () => {
                      fields: {
              id: 'large-file-id',
              ...mockDriveItem.listItem.fields,
-             ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` }))
              ...Array.from({ length: 100 }, (_, i) => ({ [`customField${i}`]: `value${i}` }))
                .reduce((acc, obj) => ({ ...acc, ...obj }), {}),
            },

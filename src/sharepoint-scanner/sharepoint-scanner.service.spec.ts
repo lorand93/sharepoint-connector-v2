@@ -75,7 +75,6 @@ describe('SharepointScannerService', () => {
 
   beforeEach(async () => {
     configService = {
-    configService = {
       get: jest.fn(),
     } as any;
 

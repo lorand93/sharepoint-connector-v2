@@ -4,7 +4,6 @@ import { MetricsService } from './metrics.service';
 import { Counter, Gauge, Histogram, register } from 'prom-client';
 
 jest.mock('prom-client', () => ({
-jest.mock('prom-client', () => ({
   Counter: jest.fn().mockImplementation(() => ({
     inc: jest.fn(),
     labels: jest.fn().mockReturnThis(),
@@ -32,7 +31,6 @@ describe('MetricsService', () => {
   let mockHistogram: jest.Mocked<Histogram<string>>;
 
   beforeEach(async () => {
-    mockCounter = {
     mockCounter = {
       inc: jest.fn(),
       labels: jest.fn().mockReturnThis(),
@@ -409,20 +407,17 @@ describe('MetricsService Integration', () => {
 
   it('should handle rapid metric updates without interference', () => {
     for (let i = 0; i < 10; i++) {
-    for (let i = 0; i < 10; i++) {
       service.recordScanStarted();
       service.recordFilesDiscovered(i, `site-${i}`);
       service.recordPipelineCompleted(i % 2 === 0, i * 0.1);
     }
 
     expect(() => service.recordScanStarted()).not.toThrow();
-    expect(() => service.recordScanStarted()).not.toThrow();
     expect(() => service.recordFilesDiscovered(1, 'test')).not.toThrow();
     expect(() => service.recordPipelineCompleted(true, 1.0)).not.toThrow();
   });
 
   it('should handle complete metric recording lifecycle', () => {
-    expect(() => {
     expect(() => {
       service.recordScanStarted();
       service.recordFilesDiscovered(50, 'site-1');
