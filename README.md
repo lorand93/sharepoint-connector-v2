@@ -2,19 +2,19 @@
 
 A robust, scalable NestJS service that automatically scans SharePoint sites, processes files through a sophisticated 5-step pipeline, and ingests content into a knowledge management system using distributed processing.
 
-## 🏗️ Architecture
+## Architecture
 
 The SharePoint Connector implements a pipeline-based architecture with the following key components:
 
-- **📊 Scheduled SharePoint Scanning** - Automated discovery and diff detection
-- **🔄 5-Step Processing Pipeline** - Token validation, content fetching, registration, upload, and finalization  
-- **🚦 Distributed Locking** - Redis-backed coordination for multi-instance deployments
-- **⚡ Queue-Based Processing** - BullMQ for reliable job processing with retries
-- **📈 Comprehensive Monitoring** - Prometheus metrics and structured logging
-- **🛡️ Rate Limiting** - Bottleneck-based protection for external APIs
-- **🐳 Containerized Deployment** - Docker and Docker Compose support
+- **Scheduled SharePoint Scanning** - Automated discovery and diff detection
+- **5-Step Processing Pipeline** - Token validation, content fetching, registration, upload, and finalization  
+- **Distributed Locking** - Redis-backed coordination for multi-instance deployments
+- **Queue-Based Processing** - BullMQ for reliable job processing with retries
+- **Comprehensive Monitoring** - Prometheus metrics and structured logging
+- **Rate Limiting** - Bottleneck-based protection for external APIs
+- **Containerized Deployment** - Docker and Docker Compose support
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -72,7 +72,7 @@ The SharePoint Connector implements a pipeline-based architecture with the follo
    docker run -p 3000:3000 sharepoint-connector
    ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Required Environment Variables
 
@@ -133,7 +133,7 @@ ZITADEL_CLIENT_SECRET=your-client-secret
    GET https://graph.microsoft.com/v1.0/sites/{hostname}:/sites/{site-name}
    ```
 
-## 📋 API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -144,7 +144,7 @@ ZITADEL_CLIENT_SECRET=your-client-secret
 | `/metrics` | GET | Prometheus metrics endpoint |
 | `/admin/queues` | GET | BullMQ dashboard (dev mode only) |
 
-## 🔄 Processing Pipeline
+## Processing Pipeline
 
 The service implements a 5-step processing pipeline for each SharePoint file:
 
@@ -179,7 +179,7 @@ graph TD
 - **Timeout Protection**: 30-second timeout per step
 - **Distributed Coordination**: Redis-based locking prevents duplicate processing
 
-## 📊 Monitoring & Observability
+## Monitoring & Observability
 
 ### Prometheus Metrics
 
@@ -218,7 +218,7 @@ All operations include structured JSON logs with:
 - **Readiness** (`/health/ready`) - Can accept new requests
 - **Liveness** (`/health/live`) - Process is alive and responding
 
-## 🧪 Testing
+## Testing
 
 ### Running Tests
 
@@ -243,16 +243,16 @@ npm run test -- --testPathPattern="pipeline"
 
 The project includes comprehensive unit tests covering:
 
-- ✅ **Pipeline Service** - Complete pipeline orchestration and error handling
-- ✅ **SharePoint Scanner** - File discovery and diff detection logic  
-- ✅ **Queue Service** - Job creation and queue management
-- ✅ **Scheduler Service** - Distributed locking and scan coordination
-- ✅ **Metrics Service** - All metric recording and health checks
-- ✅ **Pipeline Steps** - Individual step validation and error scenarios
-- ✅ **Distributed Lock Service** - Redis-based locking mechanisms
-- ✅ **Auth Services** - Token management and API authentication
+- **Pipeline Service** - Complete pipeline orchestration and error handling
+- **SharePoint Scanner** - File discovery and diff detection logic  
+- **Queue Service** - Job creation and queue management
+- **Scheduler Service** - Distributed locking and scan coordination
+- **Metrics Service** - All metric recording and health checks
+- **Pipeline Steps** - Individual step validation and error scenarios
+- **Distributed Lock Service** - Redis-based locking mechanisms
+- **Auth Services** - Token management and API authentication
 
-## 🚦 Rate Limiting
+## Rate Limiting
 
 The service implements intelligent rate limiting using Bottleneck:
 
@@ -260,7 +260,7 @@ The service implements intelligent rate limiting using Bottleneck:
 - **SharePoint Graph API**: Automatic retry with exponential backoff for throttling
 - **Redis-Backed**: Distributed rate limiting across multiple instances
 
-## 🔧 Development
+## Development
 
 ### Project Structure
 
@@ -301,7 +301,7 @@ npm run format
 npm run build
 ```
 
-## 📈 Performance
+## Performance
 
 ### Specifications
 
@@ -318,7 +318,7 @@ npm run build
 - **Resource Limits**: Configure `PROCESSING_CONCURRENCY` based on available memory
 - **Network Optimization**: HTTP connection pooling and keep-alive
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -362,11 +362,11 @@ Access the BullMQ dashboard in development mode:
 - URL: `http://localhost:3000/admin/queues`
 - Shows active jobs, failed jobs, and queue statistics
 
-## 📄 License
+## License
 
 This project is [UNLICENSED](LICENSE).
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
