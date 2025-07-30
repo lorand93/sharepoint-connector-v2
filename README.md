@@ -362,24 +362,6 @@ Access the BullMQ dashboard in development mode:
 - URL: `http://localhost:3000/admin/queues`
 - Shows active jobs, failed jobs, and queue statistics
 
-## License
-
-This project is [UNLICENSED](LICENSE).
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Write unit tests for new features
-- Follow existing code style and patterns
-- Update documentation for API changes
-- Ensure all tests pass before submitting PR
 
 ---
 
